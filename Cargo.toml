@@ -1,0 +1,27 @@
+[package]
+name = "scholarr"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.8", features = ["macros", "multipart"] }
+tokio = { version = "1.43", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "fs", "trace", "set-header"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.11", features = ["v4", "serde"] }
+anyhow = "1.0"
+thiserror = "2.0"
+pdf-extract = "0.7"
+lopdf = "0.34"
+rusqlite = "0.40.2"
+petgraph = "0.8.3"
+base64 = "0.22"
+
+

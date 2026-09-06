@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scholarr | Personal AI Research Mentor & Note Taker</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+            },
+            accent: {
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- KaTeX for LaTeX rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+
+  <!-- Marked for Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/lib/marked.umd.min.js"></script>
+
+  <!-- Highlight.js for code syntax -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="h-full flex flex-col font-sans overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
+
+  <!-- TOP HEADER -->
+  <header class="h-14 sm:h-16 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md flex items-center justify-between px-3 sm:px-5 shrink-0 z-20 shadow-sm">
+    <div class="flex items-center space-x-2.5 sm:space-x-3">
+      <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+        <i data-lucide="graduation-cap" class="w-4 h-4 sm:w-6 sm:h-6 text-white"></i>
+      </div>
+      <div>
+        <div class="flex items-center space-x-1.5 sm:space-x-2">
+          <h1 class="font-bold text-base sm:text-lg tracking-tight bg-gradient-to-r from-emerald-400 via-cyan-300 to-blue-400 bg-clip-text text-transparent">Scholarr</h1>
+          <span class="text-[9px] sm:text-[10px] uppercase font-semibold tracking-wider px-1.5 sm:px-2 py-0.2 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800/60">AI</span>
+        </div>
+        <p class="text-[10px] sm:text-xs text-slate-400 hidden sm:block">Personalized Research & LaTeX Note System</p>
+      </div>
+    </div>
+
+    <!-- Active Course / Topic Selector Indicator (Desktop/Tablet) -->
+    <div class="hidden lg:flex items-center space-x-3 bg-slate-800/70 border border-slate-700/60 rounded-xl px-3 py-1.5 shadow-inner">
+      <div class="flex items-center space-x-2 text-xs">
+        <i data-lucide="book-open" class="w-4 h-4 text-emerald-400"></i>
+        <span class="text-slate-400 font-medium">Course:</span>
+        <select id="globalCourseSelect" onchange="onGlobalCourseChange()" class="bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-xs px-2 py-1 focus:outline-none focus:border-emerald-500 max-w-[150px] truncate">
+          <option value="">-- All / General --</option>
+        </select>
+      </div>
+
+      <div class="h-4 w-px bg-slate-700"></div>
+
+      <div class="flex items-center space-x-2 text-xs">
+        <i data-lucide="bookmark" class="w-4 h-4 text-cyan-400"></i>
+        <span class="text-slate-400 font-medium">Topic:</span>
+        <select id="globalTopicSelect" onchange="onGlobalTopicChange()" class="bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-xs px-2 py-1 focus:outline-none focus:border-cyan-500 max-w-[150px] truncate">
+          <option value="">-- All Topics --</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Search & Command Palette Trigger (Desktop) -->
+    <button onclick="openCommandPalette()" class="hidden md:flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 text-xs text-slate-400 hover:text-slate-200 transition shadow-inner">
+      <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400"></i>
+      <span>Search or Jump to...</span>
+      <kbd class="ml-2 px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-400 font-mono">⌘K</kbd>
+    </button>
+
+    <!-- Settings, Quiz and Persona Controls -->
+    <div class="flex items-center space-x-1.5 sm:space-x-2">
+      <!-- Mobile Search Button -->
+      <button onclick="openCommandPalette()" class="md:hidden p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-slate-300 transition" title="Search (⌘K)">
+        <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+      </button>
+
+      <!-- Interactive Quiz Button -->
+      <button onclick="startInteractiveQuiz()" class="flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/30 text-xs text-amber-300 transition-all shadow-sm">
+        <i data-lucide="help-circle" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400"></i>
+        <span class="font-medium text-[11px] sm:text-xs">Quiz</span>
+      </button>
+
+      <!-- Persona Badge Button -->
+      <button onclick="openModal('personaModal')" class="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs text-slate-200 transition-all hover:scale-[1.02] shadow-sm">
+        <span id="personaIcon">🦉</span>
+        <span id="personaName" class="font-medium hidden sm:inline">Socratic</span>
+        <span id="personaLevel" class="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.2 rounded bg-slate-900 text-emerald-400 border border-slate-700">INT</span>
+      </button>
+
+      <!-- LLM Configuration Modal Trigger -->
+      <button onclick="openModal('llmModal')" class="flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs text-slate-200 transition-all hover:scale-[1.02]" title="Configure LLM API">
+        <i data-lucide="cpu" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400"></i>
+        <span class="hidden md:inline font-medium">LLM</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN APP CONTAINER -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- DESKTOP LEFT SIDEBAR NAV (Hidden on Mobile) -->
+    <aside class="hidden md:flex md:w-56 bg-slate-900/80 border-r border-slate-800/80 flex-col justify-between shrink-0 p-3">
+      <nav class="space-y-1.5">
+        <button onclick="switchTab('tutor')" id="tabBtn-tutor" class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <i data-lucide="message-square" class="w-5 h-5 shrink-0"></i>
+          <span>AI Tutor</span>
+        </button>
+
+        <button onclick="switchTab('courses')" id="tabBtn-courses" class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+          <i data-lucide="layers" class="w-5 h-5 shrink-0"></i>
+          <span>Courses & Syllabus</span>
+        </button>
+
+        <button onclick="switchTab('notes')" id="tabBtn-notes" class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+          <i data-lucide="file-text" class="w-5 h-5 shrink-0"></i>
+          <span>Notes & Bookmarks</span>
+        </button>
+
+        <button onclick="switchTab('graph')" id="tabBtn-graph" class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+          <i data-lucide="share-2" class="w-5 h-5 shrink-0"></i>
+          <span>Knowledge Graph</span>
+        </button>
+
+        <button onclick="switchTab('flashcards')" id="tabBtn-flashcards" class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+          <i data-lucide="layers" class="w-5 h-5 shrink-0"></i>
+          <span>Flashcards & SRS</span>
+        </button>
+
+        <button onclick="switchTab('docs')" id="tabBtn-docs" class="tab-btn w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+          <i data-lucide="folder-git-2" class="w-5 h-5 shrink-0"></i>
+          <span>Knowledge Vault</span>
+        </button>
+      </nav>
+
+      <!-- Quick Action / Stats in Sidebar -->
+      <div class="bg-slate-950/60 border border-slate-800/60 rounded-xl p-3 text-xs space-y-2.5">
+        <div class="flex items-center justify-between font-semibold text-slate-300 pb-1 border-b border-slate-800/80">
+          <span class="flex items-center space-x-1">
+            <i data-lucide="award" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>Learning Stats</span>
+          </span>
+          <button onclick="loadOverviewStats()" class="hover:text-slate-200 text-slate-500" title="Refresh stats">
+            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+          </button>
+        </div>
+        <div class="flex items-center justify-between text-slate-400">
+          <span>Quizzes Taken</span>
+          <span id="statQuizCount" class="text-cyan-400 font-mono font-medium">0 taken</span>
+        </div>
+        <div class="flex items-center justify-between text-slate-400">
+          <span>Avg Mastery</span>
+          <span id="statAvgScore" class="text-emerald-400 font-mono font-medium">--%</span>
+        </div>
+        <div class="flex items-center justify-between text-slate-400">
+          <span>Topics Mastered</span>
+          <span id="statMasteredCount" class="text-purple-400 font-mono font-medium">0/0</span>
+        </div>
+        <div class="flex items-center justify-between text-slate-400 pt-1 border-t border-slate-800/60">
+          <span>Bookmarked</span>
+          <span id="statBookmarkCount" class="text-amber-400 font-mono font-medium">0 notes</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTENT WORKSPACES -->
+    <main class="flex-1 flex flex-col overflow-hidden bg-slate-950/40 relative pb-14 md:pb-0">
+
+      <!-- ================= TAB 1: AI TUTOR WORKSPACE ================= -->
+      <section id="tab-tutor" class="tab-pane flex-1 flex flex-col h-full overflow-hidden">
+        
+        <!-- Tutor Sub-bar with Context Chips -->
+        <div class="h-12 border-b border-slate-800/60 bg-slate-900/40 px-5 flex items-center justify-between shrink-0 text-xs">
+          <div class="flex items-center space-x-3 overflow-x-auto py-1">
+            <span class="text-slate-400 font-medium">Injected Context:</span>
+            
+            <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/60 hover:border-slate-600">
+              <input type="checkbox" id="chkIncludeSyllabus" checked class="rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-0">
+              <span class="text-slate-300">Syllabus</span>
+            </label>
+
+            <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/60 hover:border-slate-600">
+              <input type="checkbox" id="chkIncludeNotes" checked class="rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-0">
+              <span class="text-slate-300">My Notes</span>
+            </label>
+
+            <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/60 hover:border-slate-600">
+              <input type="checkbox" id="chkIncludeDocs" checked class="rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-0">
+              <span class="text-slate-300">Textbook / Docs</span>
+            </label>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button onclick="clearChatHistory()" class="text-slate-400 hover:text-rose-400 px-2 py-1 rounded hover:bg-slate-800 transition" title="Clear chat messages">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Chat Stream Area -->
+        <div id="chatMessages" class="flex-1 overflow-y-auto p-5 space-y-6">
+          <!-- Welcome Greeting Card -->
+          <div class="max-w-3xl mx-auto bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
+            <div class="flex items-start space-x-4">
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
+                <i data-lucide="sparkles" class="w-6 h-6 text-white"></i>
+              </div>
+              <div class="space-y-2">
+                <h3 class="text-base font-semibold text-slate-100">Welcome to Scholarr! Your Adaptive AI Research Mentor</h3>
+                <p class="text-sm text-slate-300 leading-relaxed">
+                  I will teach and guide you with customized explanations tailored to your knowledge level, using rigorous LaTeX formulas and intuitive breakdowns.
+                </p>
+                <div class="pt-2 flex flex-wrap gap-2 text-xs">
+                  <button onclick="sendQuickPrompt('Derive the Fourier Transform from first principles with LaTeX and intuitive geometric meaning.')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+                    📐 Derive Fourier Transform with LaTeX
+                  </button>
+                  <button onclick="sendQuickPrompt('Explain Backpropagation in Neural Networks using the chain rule step-by-step.')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+                    🧠 Backprop via Chain Rule
+                  </button>
+                  <button onclick="sendQuickPrompt('Give me a 3-question conceptual quiz on our current topic to test my mastery.')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+                    🎯 Quiz Me on Active Topic
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tutor Input Bar -->
+        <div class="p-4 border-t border-slate-800/80 bg-slate-900/60 backdrop-blur-md shrink-0">
+          <div class="max-w-4xl mx-auto flex items-end space-x-3">
+            <div class="flex-1 relative bg-slate-950 border border-slate-700 rounded-2xl focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 shadow-inner">
+              <textarea id="chatInput" rows="2" placeholder="Ask a question, request a proof, paste a problem, or ask for a quiz..." class="w-full bg-transparent px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none" onkeydown="handleChatKey(event)"></textarea>
+              <div class="flex items-center justify-between px-3 pb-2 text-[11px] text-slate-500">
+                <span>LaTeX math supported: <code class="text-slate-400 font-mono">$...$</code> and <code class="text-slate-400 font-mono">$$...$$</code></span>
+                <span>Press <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-slate-300">Enter</kbd> to send</span>
+              </div>
+            </div>
+
+            <button id="btnSendChat" onclick="sendChatMessage()" class="h-12 w-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white flex items-center justify-center transition-all shadow-lg shadow-emerald-500/25 active:scale-95 shrink-0">
+              <i data-lucide="send" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 2: COURSES & SYLLABUS ================= -->
+      <section id="tab-courses" class="tab-pane hidden flex-1 flex flex-col h-full overflow-hidden p-3 sm:p-6 space-y-4 sm:space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg sm:text-xl font-bold text-slate-100">Courses & Syllabus Hub</h2>
+            <p class="text-[11px] sm:text-xs text-slate-400">Organize subjects, curriculum roadmaps, and modular topics</p>
+          </div>
+          <button onclick="openModal('createCourseModal')" class="flex items-center space-x-2 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>Create Course</span>
+          </button>
+        </div>
+
+        <!-- Courses Grid & Detail View -->
+        <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 overflow-hidden min-h-0">
+          <!-- Course List Column -->
+          <div class="lg:col-span-1 bg-slate-900/60 border border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col overflow-hidden min-h-[160px] lg:min-h-0">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 sm:mb-3">All Courses</h3>
+            <div id="coursesList" class="flex-1 overflow-y-auto space-y-2.5 pr-1">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Course Detail / Syllabus & Topics Column -->
+          <div id="courseDetailPanel" class="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-6 flex flex-col overflow-y-auto space-y-4 sm:space-y-6 min-h-[260px] lg:min-h-0">
+            <div class="flex flex-col items-center justify-center h-full text-slate-500 space-y-2">
+              <i data-lucide="book-open" class="w-10 h-10 stroke-1"></i>
+              <p class="text-sm">Select or create a course to view topics and syllabus roadmap</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 3: NOTES & BOOKMARKS ================= -->
+      <section id="tab-notes" class="tab-pane hidden flex-1 flex flex-col h-full overflow-hidden p-3 sm:p-6 space-y-4 sm:space-y-6">
+        <!-- Notes Header Bar -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+          <div>
+            <h2 class="text-lg sm:text-xl font-bold text-slate-100">Study Notes & Bookmark Vault</h2>
+            <p class="text-[11px] sm:text-xs text-slate-400">Markdown + KaTeX LaTeX equations with instant search and bookmarking</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 sm:space-x-3 w-full sm:w-auto">
+            <!-- Search Input -->
+            <div class="relative flex-1 sm:w-64 min-w-[160px]">
+              <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-500"></i>
+              <input type="text" id="noteSearchInput" oninput="debounce(loadNotes, 300)()" placeholder="Search notes, formulas, tags..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 sm:py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <!-- Bookmark Toggle Filter -->
+            <button id="btnFilterBookmarked" onclick="toggleBookmarkFilter()" class="flex items-center space-x-1.5 px-3 py-1.5 sm:py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-slate-300 hover:text-amber-400 transition">
+              <i data-lucide="star" class="w-3.5 h-3.5"></i>
+              <span class="hidden sm:inline">Bookmarked</span>
+            </button>
+
+            <!-- Create Note Button -->
+            <button onclick="openCreateNoteModal()" class="flex items-center space-x-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+              <span>New Note</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Notes Split Workspace: List + Interactive Preview/Editor -->
+        <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 overflow-hidden min-h-0">
+          <!-- Notes List -->
+          <div class="lg:col-span-1 bg-slate-900/60 border border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col overflow-hidden min-h-[160px] lg:min-h-0">
+            <div id="notesListContainer" class="flex-1 overflow-y-auto space-y-2.5 pr-1">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- Note Detail / Live LaTeX Render View -->
+          <div id="noteDetailContainer" class="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-6 flex flex-col overflow-y-auto min-h-[260px] lg:min-h-0">
+            <div class="flex flex-col items-center justify-center h-full text-slate-500 space-y-2">
+              <i data-lucide="file-text" class="w-10 h-10 stroke-1"></i>
+              <p class="text-sm">Select a note to view rendered LaTeX equations, or create a new one</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 4: KNOWLEDGE GRAPH (OBSIDIAN STYLE) ================= -->
+      <section id="tab-graph" class="tab-pane hidden flex-1 flex flex-col h-full overflow-hidden p-3 sm:p-6 space-y-3 sm:space-y-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div>
+            <h2 class="text-lg sm:text-xl font-bold text-slate-100 flex items-center space-x-2">
+              <i data-lucide="share-2" class="w-5 h-5 text-cyan-400"></i>
+              <span>Interactive Concept & Knowledge Graph</span>
+            </h2>
+            <p class="text-[11px] sm:text-xs text-slate-400">Visual topology linking courses, topics, wiki-links, formulas, and study notes</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="renderKnowledgeGraph()" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-cyan-400"></i>
+              <span>Refresh Topology</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl relative overflow-hidden flex flex-col items-center justify-center min-h-[300px]">
+          <canvas id="knowledgeGraphCanvas" class="w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+          <div class="absolute bottom-3 left-3 bg-slate-950/80 backdrop-blur-md border border-slate-800 px-2.5 py-1.5 rounded-xl text-[10px] text-slate-400 space-y-0.5">
+            <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-cyan-500 inline-block"></span><span>Courses</span></div>
+            <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span><span>Topics</span></div>
+            <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-purple-500 inline-block"></span><span>Notes</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 5: FLASHCARDS & SPACED REPETITION (SRS) ================= -->
+      <section id="tab-flashcards" class="tab-pane hidden flex-1 flex flex-col h-full overflow-hidden p-3 sm:p-6 space-y-4 sm:space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg sm:text-xl font-bold text-slate-100 flex items-center space-x-2">
+              <i data-lucide="layers" class="w-5 h-5 text-amber-400"></i>
+              <span>Spaced Repetition Flashcards</span>
+            </h2>
+            <p class="text-[11px] sm:text-xs text-slate-400">Active recall mastery engine generated from your textbook notes and formulas</p>
+          </div>
+          <button onclick="generateFlashcardsWithAI()" class="flex items-center space-x-2 px-3.5 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-xs font-semibold shadow-lg shadow-amber-500/20 transition">
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+            <span>Generate Deck with AI</span>
+          </button>
+        </div>
+
+        <div id="flashcardDeckContainer" class="flex-1 flex flex-col items-center justify-center max-w-xl mx-auto w-full space-y-4 sm:space-y-6 overflow-y-auto">
+          <!-- Rendered dynamically -->
+        </div>
+      </section>
+
+      <!-- ================= TAB 6: KNOWLEDGE VAULT (DOCS) ================= -->
+      <section id="tab-docs" class="tab-pane hidden flex-1 flex flex-col h-full overflow-hidden p-3 sm:p-6 space-y-4 sm:space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg sm:text-xl font-bold text-slate-100">Document & Textbook Vault</h2>
+            <p class="text-[11px] sm:text-xs text-slate-400">Store textbook chapters, syllabus excerpts, and research references for AI grounding</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="openModal('ingestPdfModal')" class="flex items-center space-x-2 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition">
+              <i data-lucide="file-text" class="w-4 h-4"></i>
+              <span>Ingest PDF</span>
+            </button>
+            <button onclick="openAddDocModal()" class="flex items-center space-x-2 px-3.5 sm:px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition">
+              <i data-lucide="plus" class="w-4 h-4 text-cyan-400"></i>
+              <span>Add Document</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 overflow-hidden min-h-0">
+          <!-- Docs List -->
+          <div class="lg:col-span-1 bg-slate-900/60 border border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col overflow-hidden min-h-[160px] lg:min-h-0">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 sm:mb-3">Course Documents</h3>
+            <div id="docsListContainer" class="flex-1 overflow-y-auto space-y-2.5 pr-1">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- Document Detail / Viewer -->
+          <div id="docDetailContainer" class="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-6 flex flex-col overflow-y-auto min-h-[260px] lg:min-h-0">
+            <div class="flex flex-col items-center justify-center h-full text-slate-500 space-y-2">
+              <i data-lucide="folder-git-2" class="w-10 h-10 stroke-1"></i>
+              <p class="text-sm">Select a document to read and verify chunks, or add reference material</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ================= MODALS ================= -->
+
+  <!-- 1. PERSONA & TEACHING SETTINGS MODAL -->
+  <div id="personaModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <span class="text-2xl">🦉</span>
+          <h3 class="text-lg font-bold text-slate-100">Personalized Learning Persona</h3>
+        </div>
+        <button onclick="closeModal('personaModal')" class="text-slate-400 hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block text-slate-300 font-medium mb-1.5">Learner Name</label>
+          <input type="text" id="profName" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1.5">Teaching Tone / Style</label>
+            <select id="profTone" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+              <option value="socratic">🦉 Socratic (Guiding Questions)</option>
+              <option value="eli5">💡 Intuitive & Metaphorical (ELI5)</option>
+              <option value="rigorous">🎓 Rigorous Academic (MIT/Prof)</option>
+              <option value="exam_prep">🎯 Exam & High-Yield Prep</option>
+              <option value="concise">⚡ Ultra-Concise & Direct</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-slate-300 font-medium mb-1.5">Knowledge Level</label>
+            <select id="profLevel" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+              <option value="beginner">🌱 Beginner (Building Basics)</option>
+              <option value="intermediate">🚀 Intermediate (Undergrad)</option>
+              <option value="advanced">🔬 Advanced (Graduate / Specialist)</option>
+              <option value="expert">👑 Expert (Cutting-Edge)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1.5">Math & Notation Detail Level</label>
+          <select id="profMathDetail" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+            <option value="high">High (Full step-by-step LaTeX derivations & proofs)</option>
+            <option value="standard">Standard (Core formulas with LaTeX math notation)</option>
+            <option value="intuitive">Intuitive (Geometric & conceptual over formulas)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1.5">Quiz Difficulty & Rigor Preference</label>
+          <select id="profQuizDifficulty" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+            <option value="adaptive">⚡ Adaptive (Auto-adjusts based on topic mastery)</option>
+            <option value="fundamentals">🌱 Fundamentals (Conceptual definitions & core theorems)</option>
+            <option value="intermediate">🚀 Intermediate (Undergraduate standard problem solving)</option>
+            <option value="advanced">🔬 Advanced (Graduate-level derivations & rigorous proofs)</option>
+            <option value="olympiad">👑 Olympiad / Expert (Ultra-rigorous competition problems)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1.5">Learning Goals</label>
+          <textarea id="profGoals" rows="2" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1.5">Custom Persona Directives</label>
+          <textarea id="profCustom" rows="2" placeholder="e.g. Always include real-world physics analogies before mathematics..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="closeModal('personaModal')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Cancel</button>
+        <button onclick="saveProfileSettings()" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20">Save Persona</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. LLM CONFIGURATION MODAL (LLM Agnostic Engine) -->
+  <div id="llmModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="cpu" class="w-5 h-5 text-purple-400"></i>
+          <h3 class="text-lg font-bold text-slate-100">LLM Provider Configuration</h3>
+        </div>
+        <button onclick="closeModal('llmModal')" class="text-slate-400 hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-400">
+        Compatible with any OpenAI-compliant API endpoint (Google Gemini, OpenAI, Groq, Ollama, OpenRouter, Anthropic, DeepSeek). Provide your API key below or set it in your <code class="text-emerald-400">.env</code> file.
+      </p>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block text-slate-300 font-medium mb-1.5">LLM Provider Preset</label>
+          <select id="llmProvider" onchange="onLlmProviderPresetChange()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+            <option value="openrouter">OpenRouter (Free Laguna-S + LFM Embedding)</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="openai">OpenAI (GPT-4o / GPT-4o-mini)</option>
+            <option value="groq">Groq (Llama 3.3 70B Fast)</option>
+            <option value="ollama">Ollama (Local / http://localhost:11434/v1)</option>
+            <option value="anthropic">Anthropic (Claude 3.5 Sonnet)</option>
+            <option value="custom">Custom OpenAI-Compatible Endpoint</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1.5">API Key</label>
+          <input type="password" id="llmApiKey" placeholder="Enter API Key or leave masked/blank if configured in .env" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500 font-mono">
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1.5">Base URL (Endpoint)</label>
+          <input type="text" id="llmBaseUrl" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500 font-mono">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1.5">Chat Model Name</label>
+            <input type="text" id="llmModel" placeholder="poolside/laguna-s-2.1:free" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500 font-mono">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1.5">Embedding Model Name</label>
+            <input type="text" id="llmEmbeddingModel" placeholder="liquid/lfm-2.5-embedding-350m:free" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500 font-mono">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1.5">Temperature</label>
+            <input type="number" id="llmTemp" min="0" max="1" step="0.1" value="0.7" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1.5">Max Tokens</label>
+            <input type="number" id="llmMaxTokens" value="4096" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+          </div>
+        </div>
+
+        <!-- Connection Test Status Box -->
+        <div id="llmTestStatus" class="hidden p-3 rounded-xl text-xs"></div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2">
+        <button onclick="testLlmConnection()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-800/40 text-xs font-semibold flex items-center space-x-1.5">
+          <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+          <span>Test Connection</span>
+        </button>
+
+        <div class="flex space-x-2">
+          <button onclick="closeModal('llmModal')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Cancel</button>
+          <button onclick="saveLlmSettings()" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-lg shadow-purple-600/20">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. CREATE / EDIT COURSE MODAL -->
+  <div id="createCourseModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 id="courseModalTitle" class="text-lg font-bold text-slate-100">Create New Course</h3>
+        <button onclick="closeModal('createCourseModal')" class="text-slate-400 hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="editCourseId" value="">
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Course Title *</label>
+          <input type="text" id="courseTitleInput" placeholder="e.g. Quantum Mechanics & Linear Algebra" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Category / Domain</label>
+            <input type="text" id="courseCategoryInput" placeholder="e.g. Physics, Math, CS" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Short Description</label>
+            <input type="text" id="courseDescInput" placeholder="Brief overview of course focus" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Course Syllabus / Curriculum Outline</label>
+          <textarea id="courseSyllabusInput" rows="6" placeholder="Paste syllabus topics, weekly schedule, or chapter roadmap (Markdown & LaTeX supported)..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="closeModal('createCourseModal')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Cancel</button>
+        <button onclick="submitCourseForm()" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20">Save Course</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. CREATE / EDIT TOPIC MODAL -->
+  <div id="createTopicModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 id="topicModalTitle" class="text-lg font-bold text-slate-100">Add Topic</h3>
+        <button onclick="closeModal('createTopicModal')" class="text-slate-400 hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="editTopicId" value="">
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Chapter / Module</label>
+          <input type="text" id="topicChapterInput" placeholder="e.g. Chapter 1: Signals and Systems, Module A" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500">
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Topic Title *</label>
+          <input type="text" id="topicTitleInput" placeholder="e.g. Hilbert Spaces & Dirac Notation" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500">
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Mastery Status</label>
+          <select id="topicMasteryInput" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500">
+            <option value="to_learn">⏳ To Learn</option>
+            <option value="in_progress">🚀 In Progress</option>
+            <option value="mastered">✅ Mastered</option>
+            <option value="review_needed">🔁 Review Needed</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Topic Summary / Key Objectives</label>
+          <textarea id="topicSummaryInput" rows="3" placeholder="Key concepts to cover or review in this topic..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="closeModal('createTopicModal')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Cancel</button>
+        <button onclick="submitTopicForm()" class="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-lg shadow-cyan-600/20">Save Topic</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. CREATE / EDIT NOTE MODAL -->
+  <div id="createNoteModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between">
+        <h3 id="noteModalTitle" class="text-lg font-bold text-slate-100">Create Study Note</h3>
+        <button onclick="closeModal('createNoteModal')" class="text-slate-400 hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="editNoteId" value="">
+
+      <div class="space-y-3 text-xs flex-1 overflow-y-auto pr-1">
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Note Title *</label>
+          <input type="text" id="noteTitleInput" placeholder="e.g. Spectral Theorem & Eigenvalue Decomposition" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Associate Course</label>
+            <select id="noteCourseSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+              <option value="">-- None / General --</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Tags (comma-separated)</label>
+            <input type="text" id="noteTagsInput" placeholder="algebra, proofs, exam-2" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <label class="block text-slate-300 font-medium">Content (Markdown + LaTeX equations)</label>
+          <button type="button" onclick="generateNoteWithAI()" class="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center space-x-1">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+            <span>Synthesize with AI</span>
+          </button>
+        </div>
+
+        <!-- Slash command helper bar -->
+        <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 text-[11px]">
+          <span class="text-slate-500 font-medium shrink-0">Quick Insert:</span>
+          <button type="button" onclick="insertNoteTemplate('equation')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 shrink-0">📐 LaTeX Block</button>
+          <button type="button" onclick="insertNoteTemplate('theorem')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 shrink-0">💡 Theorem</button>
+          <button type="button" onclick="insertNoteTemplate('proof')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 shrink-0">🎓 Proof Callout</button>
+          <button type="button" onclick="insertNoteTemplate('definition')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 shrink-0">📖 Definition</button>
+          <button type="button" onclick="insertNoteTemplate('toggle')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 shrink-0">▶ Toggle Proof</button>
+          <button type="button" onclick="insertNoteTemplate('wikilink')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 shrink-0">🔗 [[WikiLink]]</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 min-h-[220px] md:h-64 relative">
+          <!-- Editor -->
+          <textarea id="noteContentInput" oninput="updateNoteModalPreview()" onkeydown="handleNoteTextareaKey(event)" rows="8" placeholder="Type notes here... Type / for Notion templates:
+- [[Concept]] for Obsidian wiki-links
+- > [!THEOREM] for Theorem Callouts
+- > [!PROOF] for Step-by-Step Proofs
+- $$ ... $$ for Block Math" class="w-full h-full min-h-[120px] bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono text-xs resize-none"></textarea>
+
+          <!-- Live Preview -->
+          <div id="noteContentPreview" class="h-full min-h-[100px] bg-slate-950/70 border border-slate-800 rounded-xl p-3 text-xs overflow-y-auto prose prose-invert prose-slate max-w-none">
+            <p class="text-slate-500 italic">Live rendered preview will appear here...</p>
+          </div>
+        </div>
+
+        <label class="flex items-center space-x-2 cursor-pointer pt-1">
+          <input type="checkbox" id="noteBookmarkCheck" class="rounded text-amber-500 bg-slate-950 border-slate-700 focus:ring-0">
+          <span class="text-slate-300 font-medium">⭐ Bookmark this note for quick revision</span>
+        </label>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+        <button onclick="closeModal('createNoteModal')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Cancel</button>
+        <button onclick="submitNoteForm()" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20">Save Note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. ADD DOCUMENT / TEXTBOOK EXCERPT MODAL -->
+  <div id="addDocModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold text-slate-100">Add Textbook / Reference Document</h3>
+        <button onclick="closeModal('addDocModal')" class="text-slate-400 hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Target Course *</label>
+          <select id="docCourseSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500">
+            <!-- Populated via JS -->
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Document Title *</label>
+            <input type="text" id="docTitleInput" placeholder="e.g. Chapter 4: Eigenvalues" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Document Type</label>
+            <select id="docTypeInput" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500">
+              <option value="book_chapter">📖 Textbook Chapter / Excerpt</option>
+              <option value="syllabus">📜 Syllabus / Curriculum</option>
+              <option value="paper">📑 Research Paper / Article</option>
+              <option value="lecture_notes">🎓 Lecture Notes</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Content / Excerpt Text *</label>
+          <textarea id="docContentInput" rows="8" placeholder="Paste the text, chapters, theorem proofs, or reference material here..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="closeModal('addDocModal')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Cancel</button>
+        <button onclick="submitDocForm()" class="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-lg shadow-cyan-600/20">Add to Vault</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. INGEST PDF TEXTBOOK MODAL -->
+  <div id="ingestPdfModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="file-text" class="w-5 h-5 text-emerald-400"></i>
+          <h3 class="text-lg font-bold text-slate-100">Ingest PDF Textbook with Embeddings</h3>
+        </div>
+        <button onclick="closeModal('ingestPdfModal')" class="text-slate-400 hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-400">
+        Extracts textbook text, splits into semantic chunks, computes vector embeddings using <code class="text-emerald-400 font-mono">liquid/lfm-2.5-embedding-350m:free</code>, and persists into RocksDB.
+      </p>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">PDF Absolute File Path *</label>
+          <input type="text" id="ingestPdfPath" value="/Users/amansahani/Downloads/Signals_and_Systems_2nd_Edition_by_Oppen.pdf" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono">
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Target Course Title</label>
+          <input type="text" id="ingestPdfCourse" value="Signals & Systems (Oppenheim 2nd Ed.)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Max Chunks to Embed (leave blank for all)</label>
+          <input type="number" id="ingestPdfMaxChunks" value="100" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div id="ingestStatusBox" class="hidden p-3 rounded-xl text-xs"></div>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+        <button onclick="closeModal('ingestPdfModal')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Cancel</button>
+        <button id="btnStartIngest" onclick="triggerPdfIngestion()" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 flex items-center space-x-1.5">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+          <span>Start Ingestion & Embeddings</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. TOAST NOTIFICATION CONTAINER (COMPONENT) -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-[9999] flex flex-col space-y-2 pointer-events-none max-w-sm w-full"></div>
+
+  <!-- 9. REUSABLE CONFIRMATION MODAL (COMPONENT) -->
+  <div id="confirmModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-[9999] hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in duration-150">
+      <div class="flex items-start space-x-3">
+        <div id="confirmIconContainer" class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 text-amber-400">
+          <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+        </div>
+        <div class="space-y-1 flex-1">
+          <h3 id="confirmTitle" class="text-base font-bold text-slate-100">Confirm Action</h3>
+          <p id="confirmMessage" class="text-xs text-slate-400 leading-relaxed"></p>
+        </div>
+      </div>
+      <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+        <button id="btnConfirmCancel" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition">Cancel</button>
+        <button id="btnConfirmOk" class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-lg shadow-rose-600/20 transition">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. COMMAND PALETTE MODAL (CMD+K / CTRL+K) -->
+  <div id="commandPaletteModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-[9998] hidden flex items-start justify-center pt-20 p-4" onclick="if(event.target===this) closeCommandPalette()">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150 flex flex-col" onclick="event.stopPropagation()">
+      <div class="p-3.5 border-b border-slate-800 flex items-center space-x-3 bg-slate-950/60">
+        <i data-lucide="search" class="w-5 h-5 text-emerald-400"></i>
+        <input type="text" id="cmdPaletteInput" placeholder="Type a command, course name, topic, or search query..." class="w-full bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none" oninput="onCommandPaletteSearch(this.value)" onkeydown="handleCommandPaletteKey(event)">
+        <kbd class="px-2 py-0.5 bg-slate-800 rounded border border-slate-700 text-[10px] text-slate-400">ESC</kbd>
+      </div>
+      <div id="cmdPaletteResults" class="max-h-80 overflow-y-auto p-2 space-y-1 text-xs">
+        <!-- Populated dynamically via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 11. INTERACTIVE ACTIVE RECALL QUIZ MODAL -->
+  <div id="quizModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9990] hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in duration-150">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-inner shrink-0">
+            <i data-lucide="help-circle" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 id="quizModalTitle" class="text-base font-bold text-slate-100 flex items-center space-x-2">
+              <span>Interactive Active Recall Quiz</span>
+            </h3>
+            <p id="quizModalSubtitle" class="text-xs text-slate-400">Personalized conceptual and analytical mastery evaluation</p>
+          </div>
+        </div>
+        <button onclick="closeQuizModal()" class="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Controls: Topic & Difficulty Configuration Bar -->
+      <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs">
+        <div class="flex items-center space-x-2 flex-1 min-w-[200px]">
+          <span class="text-slate-400 font-medium shrink-0">Topic:</span>
+          <select id="quizTopicSelect" onchange="onQuizTopicChange(this.value)" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-slate-200 focus:outline-none focus:border-amber-500 text-xs w-full">
+            <!-- Populated dynamically via JS -->
+          </select>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="text-slate-400 font-medium shrink-0">Difficulty:</span>
+          <select id="quizDifficultySelect" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-amber-300 font-medium focus:outline-none focus:border-amber-500 text-xs">
+            <option value="adaptive">⚡ Adaptive (Persona)</option>
+            <option value="fundamentals">🌱 Fundamentals (Concepts & Definitions)</option>
+            <option value="intermediate">🚀 Intermediate (Undergraduate Derivations)</option>
+            <option value="advanced">🔬 Advanced (Graduate Mathematical Rigor)</option>
+            <option value="olympiad">👑 Olympiad / Competition Level</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Dynamic Quiz Content Area -->
+      <div id="quizContentArea" class="flex-1 overflow-y-auto space-y-4 pr-1 min-h-[240px]">
+        <!-- Setup / Loading / Questions / Graded Feedback will be rendered dynamically -->
+      </div>
+
+      <!-- Modal Action Footer -->
+      <div id="quizModalFooter" class="flex items-center justify-between pt-3 border-t border-slate-800/80">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 12. MOBILE BOTTOM NAVIGATION BAR -->
+  <nav id="mobileBottomNav" class="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-slate-900/95 border-t border-slate-800 backdrop-blur-lg flex items-center justify-around px-1 z-40 shadow-2xl">
+    <button onclick="switchTab('tutor')" id="mobileTabBtn-tutor" class="mobile-tab-btn flex flex-col items-center justify-center p-1.5 rounded-lg text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 transition">
+      <i data-lucide="message-square" class="w-4 h-4"></i>
+      <span class="text-[9px] font-medium mt-0.5">Tutor</span>
+    </button>
+    <button onclick="switchTab('courses')" id="mobileTabBtn-courses" class="mobile-tab-btn flex flex-col items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition">
+      <i data-lucide="layers" class="w-4 h-4"></i>
+      <span class="text-[9px] font-medium mt-0.5">Courses</span>
+    </button>
+    <button onclick="switchTab('notes')" id="mobileTabBtn-notes" class="mobile-tab-btn flex flex-col items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition">
+      <i data-lucide="file-text" class="w-4 h-4"></i>
+      <span class="text-[9px] font-medium mt-0.5">Notes</span>
+    </button>
+    <button onclick="switchTab('graph')" id="mobileTabBtn-graph" class="mobile-tab-btn flex flex-col items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition">
+      <i data-lucide="share-2" class="w-4 h-4"></i>
+      <span class="text-[9px] font-medium mt-0.5">Graph</span>
+    </button>
+    <button onclick="switchTab('flashcards')" id="mobileTabBtn-flashcards" class="mobile-tab-btn flex flex-col items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition">
+      <i data-lucide="layers" class="w-4 h-4"></i>
+      <span class="text-[9px] font-medium mt-0.5">Cards</span>
+    </button>
+    <button onclick="switchTab('docs')" id="mobileTabBtn-docs" class="mobile-tab-btn flex flex-col items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition">
+      <i data-lucide="folder-git-2" class="w-4 h-4"></i>
+      <span class="text-[9px] font-medium mt-0.5">Vault</span>
+    </button>
+  </nav>
+
+  <script src="/app.js?v=2.7"></script>
+</body>
+</html>
