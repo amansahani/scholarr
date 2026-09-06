@@ -45,69 +45,69 @@ impl PromptBuilder {
             _ => {}
         }
 
-        // 2. Formatting Rules & LaTeX Guidelines
-        prompt.push_str("\n### 📐 MATHEMATICAL NOTATION & FORMATTING GUIDELINES (STRICT):\n");
-        prompt.push_str("1. **LaTeX Required**: You MUST format ALL mathematical expressions, variables, formulas, and matrices using standard LaTeX with dollar signs:\n");
-        prompt.push_str("   - Inline variables and formulas MUST use single dollar signs: e.g. `$x(t)$`, `$\\delta(t)$`, `$u(t)$`, `$\\omega_0$`, `$H(s)$`.\n");
-        prompt.push_str("   - Display block equations MUST use double dollar signs on their own lines:\n$$\n\\int_{-\\infty}^{\\infty} x(\\tau) h(t-\\tau) d\\tau\n$$\n");
-        prompt.push_str("   - Multi-step derivations: Use `$$\\begin{aligned} ... \\end{aligned}$$`.\n");
-        prompt.push_str("   - DO NOT use plain parentheses `(x(t))` or brackets `[ ... ]` for equations. Always use `$ ... $` and `$$ ... $$`.\n");
-        prompt.push_str("2. **Executable Python & 3Blue1Brown (Manim) Visualizations (AUTO-EXECUTED)**:\n");
-        prompt.push_str("   - You MUST write complete, self-contained, executable code directly inside markdown Python code blocks (```python ... ```).\n");
-        prompt.push_str("   - DO NOT output fake tool calling markup such as `<|tool_call_start|>` or `execute_bash(...)`. Just write the actual Python code directly in ````python ... ```` blocks!\n");
-        prompt.push_str("   - For standard graphs & diagrams: Use `matplotlib.pyplot` and `numpy` (e.g. `import numpy as np`, `import matplotlib.pyplot as plt`). Call `plt.plot(...)`, `plt.title(...)`, `plt.grid(True)`.\n");
-        prompt.push_str("   - For 3Blue1Brown animations: Write a `from manim import *` Scene class (e.g. `class TransformScene(Scene): def construct(self): ...`).\n");
-        prompt.push_str("   - The Scholarr interactive studio detects ````python```` blocks and AUTOMATICALLY executes them in our backend Python sandbox to display the live interactive diagram or animation video.\n");
-        prompt.push_str("3. **Structure**: Organize answers with bold markdown headers (`###`), bullet points, intuitive summaries, and actionable study takeaways.\n");
-        prompt.push_str("4. **Study Notes**: Whenever explaining an important concept, highlight a concise **Key Takeaway** or **Note Card** block so the user can easily bookmark or save it.\n\n");
+        // 2. Pi / DeepSeek Cognitive Architecture & Tool Protocol
+        prompt.push_str("### 🧠 AGENT EXECUTION HARNESS PROTOCOL (DeepSeek / Pi Harness Pattern):\n");
+        prompt.push_str("You operate in an integrated computational research environment equipped with an isolated Python & Manim runtime engine.\n");
+        prompt.push_str("- When formulating explanations, verify calculations, simulate dynamic systems, or generate visual diagrams dynamically.\n");
+        prompt.push_str("- **Execution Contract**: When you output a code block with ```python ... ```, our backend sandbox executes it immediately in an isolated sub-process. Matplotlib plots and Manim animations are rendered and displayed in real-time.\n");
+        prompt.push_str("- **Manim 3Blue1Brown Standard**: When asked for animations, import from manim (`from manim import *`), define a `Scene` subclass, and animate using clear transitions (`self.play(...)`, `self.wait(...)`).\n");
+        prompt.push_str("- **Matplotlib Standard**: Use `import matplotlib.pyplot as plt` and `import numpy as np`. Label axes, use grids (`plt.grid(True)`), and write clean mathematical titles.\n");
+        prompt.push_str("- Always write complete, runnable Python code with no omitted lines or placeholders.\n\n");
 
-        // 3. Course Context
+        // 3. Formatting Rules & LaTeX Guidelines
+        prompt.push_str("### 📐 MATHEMATICAL NOTATION & RIGOR (STRICT):\n");
+        prompt.push_str("1. **LaTeX Encodings**: You MUST format ALL mathematical formulas, variables, and expressions using LaTeX:\n");
+        prompt.push_str("   - Inline math: `$x(t)$`, `$\\delta(t)$`, `$u(t)$`, `$\\omega_0$`, `$H(s)$`\n");
+        prompt.push_str("   - Block math: `$$\\int_{-\\infty}^{\\infty} x(\\tau) h(t-\\tau) d\\tau$$`\n");
+        prompt.push_str("   - Step-by-step derivations: Use `$$\\begin{aligned} ... \\end{aligned}$$`.\n");
+        prompt.push_str("2. **Clarity & Structure**: Organize responses with bold section headers, intuitive physical analogies, formal derivations, and highlighted key takeaways.\n\n");
+
+        // 4. Course & Topic Grounded Context (Working Memory)
         if let Some(c) = course {
-            prompt.push_str("### 📚 ACTIVE COURSE CONTEXT:\n");
-            prompt.push_str(&format!("- **Course Title**: {}\n", c.title));
+            prompt.push_str("### 📚 ACTIVE COURSE CONTEXT (Working Memory):\n");
+            prompt.push_str(&format!("- **Course**: {}\n", c.title));
             prompt.push_str(&format!("- **Category**: {}\n", c.category));
             if !c.description.trim().is_empty() {
                 prompt.push_str(&format!("- **Description**: {}\n", c.description));
             }
             if !c.syllabus.trim().is_empty() {
-                prompt.push_str(&format!("- **Course Syllabus / Roadmap**:\n```\n{}\n```\n", c.syllabus.trim()));
+                prompt.push_str(&format!("- **Syllabus Roadmap**:\n```\n{}\n```\n", c.syllabus.trim()));
             }
             prompt.push_str("\n");
         }
 
-        // 4. Topic Context
         if let Some(t) = topic {
-            prompt.push_str("### 🔖 CURRENT TOPIC FOCUS:\n");
+            prompt.push_str("### 🔖 ACTIVE TOPIC FOCUS:\n");
             prompt.push_str(&format!("- **Topic**: {}\n", t.title));
             prompt.push_str(&format!("- **Mastery State**: {}\n", t.mastery_level));
             if !t.summary.trim().is_empty() {
-                prompt.push_str(&format!("- **Topic Overview**: {}\n", t.summary));
+                prompt.push_str(&format!("- **Summary**: {}\n", t.summary));
             }
             prompt.push_str("\n");
         }
 
-        // 5. Attached Documents & Textbook Reference Materials
+        // 5. Semantic Long-Term Memory (RAG Retrieval)
         if !docs.is_empty() {
-            prompt.push_str("### 📖 REFERENCE MATERIALS & UPLOADED DOCUMENTS:\n");
+            prompt.push_str("### 📖 RETRIEVED TEXTBOOK & DOCUMENT CONTEXT (Long-Term Memory):\n");
             for (idx, doc) in docs.iter().enumerate() {
                 prompt.push_str(&format!(
-                    "--- Document {} [{}]: '{}' ---\n{}\n\n",
+                    "--- [Reference Chunk {} | {}] '{}' ---\n{}\n\n",
                     idx + 1,
                     doc.doc_type,
                     doc.title,
                     doc.content.trim()
                 ));
             }
-            prompt.push_str("Reference the materials above accurately when answering.\n\n");
+            prompt.push_str("Ground your answers firmly in the reference materials above.\n\n");
         }
 
-        // 6. User's Personal Notes & Bookmarks
+        // 6. User Personal Notes & Knowledge Graph Context
         if !notes.is_empty() {
-            prompt.push_str("### 📝 RELEVANT USER NOTES & BOOKMARKS:\n");
+            prompt.push_str("### 📝 RELEVANT USER NOTES & MEMORY EMBEDDINGS:\n");
             for note in notes {
                 let bm = if note.is_bookmarked { " ⭐ [BOOKMARKED]" } else { "" };
                 let tags = if !note.tags.is_empty() { format!(" (Tags: {})", note.tags.join(", ")) } else { "".to_string() };
-                prompt.push_str(&format!("- **Note: {}**{}{}\n  {}\n", note.title, bm, tags, note.content.trim()));
+                prompt.push_str(&format!("- **{}**{}{}\n  {}\n", note.title, bm, tags, note.content.trim()));
             }
             prompt.push_str("\n");
         }
