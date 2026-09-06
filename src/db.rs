@@ -1011,6 +1011,32 @@ pub fn save_chat_message(db: &DbHandle, course_id: Option<&str>, topic_id: Optio
     Ok(())
 }
 
+pub fn update_chat_message_content(db: &DbHandle, old_code: &str, new_code: &str) -> Result<bool> {
+    let conn = db.lock().unwrap();
+    let mut stmt = conn.prepare("SELECT id, content FROM chat_history WHERE role = 'assistant' AND content LIKE ? ORDER BY created_at DESC LIMIT 5")?;
+    let search_pattern = format!("%{}%", old_code.trim());
+    let rows = stmt.query_map(params![search_pattern], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+
+    let mut updated = false;
+    for r in rows.flatten() {
+        let (id, content) = r;
+        let old_block = format!("```python\n{}\n```", old_code.trim());
+        let new_block = format!("```python\n{}\n```", new_code.trim());
+        let updated_content = content.replace(&old_block, &new_block).replace(old_code.trim(), new_code.trim());
+        if updated_content != content {
+            conn.execute(
+                "UPDATE chat_history SET content = ?1 WHERE id = ?2",
+                params![updated_content, id],
+            )?;
+            updated = true;
+            break;
+        }
+    }
+    Ok(updated)
+}
+
 pub fn get_chat_history(db: &DbHandle, course_id: Option<&str>, topic_id: Option<&str>, limit: usize) -> Result<Vec<ChatMessage>> {
     let conn = db.lock().unwrap();
     let mut sql = "SELECT id, course_id, topic_id, role, content, created_at FROM chat_history WHERE 1=1".to_string();

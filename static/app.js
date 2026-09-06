@@ -671,7 +671,7 @@ async function runSandboxCode(runnerId) {
             <div class="space-y-2">
               <pre class="text-rose-400 whitespace-pre-wrap">${escapeHtml(stderr)}</pre>
               <div class="flex justify-end pt-1">
-                <button onclick="autoFixCodeWithAI('${runnerId}')" class="px-3 py-1 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95">
+                <button onclick="autoFixCodeWithAI('${runnerId}')" class="btn-auto-fix px-3 py-1 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95">
                   <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-300"></i>
                   <span>Auto-Fix Code with AI</span>
                 </button>
@@ -722,43 +722,93 @@ async function autoFixCodeWithAI(runnerId) {
   const code = editor ? editor.value.trim() : '';
   const stderrPre = runner.querySelector('.stderr pre');
   const stderr = stderrPre ? stderrPre.textContent.trim() : '';
+  const mediaContainer = runner.querySelector('.media-container');
+  const fixBtn = runner.querySelector('.btn-auto-fix') || event?.currentTarget;
 
   if (!code || !stderr) {
     showToast('No error or code found to fix', 'error');
     return;
   }
 
-  showToast('AI is debugging and repairing code...', 'info');
+  // Update button state to loading
+  let originalBtnHtml = '';
+  if (fixBtn) {
+    fixBtn.disabled = true;
+    originalBtnHtml = fixBtn.innerHTML;
+    fixBtn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin text-amber-300"></i><span>AI is Repairing Code...</span>`;
+    if (window.lucide) lucide.createIcons();
+  }
 
-  const fixPrompt = `The following Python/Manim script produced an error upon execution:\n\nError:\n\`\`\`stderr\n${stderr}\n\`\`\`\n\nCode:\n\`\`\`python\n${code}\n\`\`\`\n\nPlease fix this error and output ONLY the complete corrected Python code in a single \`\`\`python ... \`\`\` block.`;
+  // Display persistent live repairing banner
+  if (mediaContainer) {
+    mediaContainer.innerHTML = `
+      <div class="p-5 rounded-2xl bg-gradient-to-r from-purple-950/70 via-slate-900 to-indigo-950/70 border border-purple-500/40 text-purple-200 text-xs shadow-xl space-y-3 animate-pulse-subtle">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-xl bg-purple-600/30 border border-purple-500/50 flex items-center justify-center shrink-0">
+              <i data-lucide="sparkles" class="w-4 h-4 text-amber-300 animate-spin"></i>
+            </div>
+            <div>
+              <div class="font-bold text-slate-100 text-[13px] flex items-center space-x-1.5">
+                <span>AI Automated Repair Active</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              </div>
+              <p class="text-[11px] text-purple-300/80">Analyzing runtime traceback, patching function signatures & recompiling in sandbox...</p>
+            </div>
+          </div>
+        </div>
+        <div class="w-full bg-purple-950/60 rounded-full h-1.5 overflow-hidden border border-purple-800/40">
+          <div class="bg-gradient-to-r from-purple-500 to-emerald-400 h-full rounded-full animate-pulse" style="width: 100%"></div>
+        </div>
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  showToast('AI is debugging and repairing code...', 'info', 4000);
 
   try {
-    const res = await fetch('/api/chat', {
+    const res = await fetch('/api/execute/repair', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: fixPrompt })
+      body: JSON.stringify({ code, stderr })
     });
     const json = await res.json();
-    if (json.success && json.data && json.data.reply) {
-      const match = json.data.reply.match(/```python\s*([\s\S]*?)```/);
-      if (match && match[1]) {
-        const fixedCode = match[1].trim();
-        editor.value = fixedCode;
-        const codeDisplay = runner.querySelector('.code-display pre code');
-        if (codeDisplay) {
-          codeDisplay.textContent = fixedCode;
-          if (window.hljs) hljs.highlightElement(codeDisplay);
-        }
-        showToast('Code repaired! Re-running...', 'success');
-        await runSandboxCode(runnerId);
-      } else {
-        showToast('AI reply did not contain code block', 'error');
+    if (json.success && json.data && json.data.fixed_code) {
+      const fixedCode = json.data.fixed_code.trim();
+      editor.value = fixedCode;
+      const codeDisplay = runner.querySelector('.code-display pre code');
+      if (codeDisplay) {
+        codeDisplay.textContent = fixedCode;
+        if (window.hljs) hljs.highlightElement(codeDisplay);
       }
+      showToast('Code repaired and saved to history! Re-running...', 'success', 3000);
+      await runSandboxCode(runnerId);
     } else {
-      showToast('AI fix failed: ' + (json.error || 'Unknown error'), 'error');
+      if (mediaContainer) {
+        mediaContainer.innerHTML = `
+          <div class="p-4 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-200 text-xs">
+            <span class="font-bold">⚠️ Repair Unsuccessful:</span> ${escapeHtml(json.error || 'No valid code fix returned')}
+          </div>
+        `;
+      }
+      showToast('AI repair failed: ' + (json.error || 'No fix returned'), 'error');
     }
   } catch (err) {
+    if (mediaContainer) {
+      mediaContainer.innerHTML = `
+        <div class="p-4 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-200 text-xs">
+          <span class="font-bold">⚠️ Connection Error:</span> ${escapeHtml(err.message)}
+        </div>
+      `;
+    }
     showToast('Failed to connect to AI debugger: ' + err.message, 'error');
+  } finally {
+    if (fixBtn) {
+      fixBtn.disabled = false;
+      fixBtn.innerHTML = originalBtnHtml;
+      if (window.lucide) lucide.createIcons();
+    }
   }
 }
 

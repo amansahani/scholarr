@@ -109,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/memories/{id}", delete(routes::delete_memory))
         // Code Execution & Sandbox Visualizer
         .route("/execute/python", post(execute::execute_python_code))
+        .route("/execute/repair", post(routes::repair_code))
         .with_state(state);
 
     // Serve static files

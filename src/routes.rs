@@ -1233,3 +1233,64 @@ pub async fn delete_memory(
         Err(e) => ApiResponse::<String>::err(e.to_string()).into_response(),
     }
 }
+
+#[derive(Debug, Deserialize)]
+pub struct RepairCodeReq {
+    pub code: String,
+    pub stderr: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RepairCodeResponse {
+    pub fixed_code: String,
+    pub execution_result: Option<crate::execute::ExecutePythonResult>,
+}
+
+pub async fn repair_code(
+    State(state): State<AppState>,
+    Json(payload): Json<RepairCodeReq>,
+) -> impl IntoResponse {
+    let llm_config = match db::get_llm_config(&state.db) {
+        Ok(c) => c,
+        Err(e) => return ApiResponse::<RepairCodeResponse>::err(e.to_string()).into_response(),
+    };
+
+    let healing_prompt = format!(
+        "The following Python/Manim script produced an error upon execution:\n\nError:\n```stderr\n{}\n```\n\nCode:\n```python\n{}\n```\n\nPlease fix this error and output ONLY the complete corrected Python code inside a single ```python ... ``` block. Do not include extra conversational text.",
+        payload.stderr.trim(),
+        payload.code.trim()
+    );
+
+    let fix_messages = vec![
+        OpenAIMessage {
+            role: "system".to_string(),
+            content: "You are an elite Python & Manim code debugger. When given a runtime error, analyze it and output ONLY the complete corrected Python code in a ```python ... ``` block.".to_string(),
+        },
+        OpenAIMessage {
+            role: "user".to_string(),
+            content: healing_prompt,
+        },
+    ];
+
+    match state.llm.complete(&llm_config, fix_messages).await {
+        Ok(reply) => {
+            let fixed_blocks = crate::execute::extract_python_blocks(&reply);
+            if let Some(fixed_code) = fixed_blocks.into_iter().next() {
+                // Persist the repaired code directly into chat history database
+                let _ = db::update_chat_message_content(&state.db, &payload.code, &fixed_code);
+
+                // Pre-execute the fixed code in sandbox
+                let exec_result = crate::execute::run_python_isolated(&fixed_code, None, Some(45)).await.ok();
+
+                ApiResponse::ok(RepairCodeResponse {
+                    fixed_code,
+                    execution_result: exec_result,
+                })
+                .into_response()
+            } else {
+                ApiResponse::<RepairCodeResponse>::err("AI did not return a valid python code block").into_response()
+            }
+        }
+        Err(e) => ApiResponse::<RepairCodeResponse>::err(format!("LLM Repair Error: {}", e)).into_response(),
+    }
+}
