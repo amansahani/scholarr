@@ -667,7 +667,17 @@ async function runSandboxCode(runnerId) {
         }
 
         if (stderr) {
-          stderrEl.textContent = stderr;
+          stderrEl.innerHTML = `
+            <div class="space-y-2">
+              <pre class="text-rose-400 whitespace-pre-wrap">${escapeHtml(stderr)}</pre>
+              <div class="flex justify-end pt-1">
+                <button onclick="autoFixCodeWithAI('${runnerId}')" class="px-3 py-1 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-300"></i>
+                  <span>Auto-Fix Code with AI</span>
+                </button>
+              </div>
+            </div>
+          `;
           stderrEl.classList.remove('hidden');
         } else {
           stderrEl.classList.add('hidden');
@@ -676,6 +686,7 @@ async function runSandboxCode(runnerId) {
         consoleContainer.classList.add('hidden');
       }
 
+      if (window.lucide) lucide.createIcons();
       showToast('Execution finished!', 'success', 2000);
     } else {
       mediaContainer.innerHTML = `
@@ -701,6 +712,53 @@ async function runSandboxCode(runnerId) {
     btn.disabled = false;
     btn.innerHTML = originalBtnHtml;
     if (window.lucide) lucide.createIcons();
+  }
+}
+
+async function autoFixCodeWithAI(runnerId) {
+  const runner = document.getElementById(runnerId);
+  if (!runner) return;
+  const editor = runner.querySelector('.code-editor');
+  const code = editor ? editor.value.trim() : '';
+  const stderrPre = runner.querySelector('.stderr pre');
+  const stderr = stderrPre ? stderrPre.textContent.trim() : '';
+
+  if (!code || !stderr) {
+    showToast('No error or code found to fix', 'error');
+    return;
+  }
+
+  showToast('AI is debugging and repairing code...', 'info');
+
+  const fixPrompt = `The following Python/Manim script produced an error upon execution:\n\nError:\n\`\`\`stderr\n${stderr}\n\`\`\`\n\nCode:\n\`\`\`python\n${code}\n\`\`\`\n\nPlease fix this error and output ONLY the complete corrected Python code in a single \`\`\`python ... \`\`\` block.`;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: fixPrompt })
+    });
+    const json = await res.json();
+    if (json.success && json.data && json.data.reply) {
+      const match = json.data.reply.match(/```python\s*([\s\S]*?)```/);
+      if (match && match[1]) {
+        const fixedCode = match[1].trim();
+        editor.value = fixedCode;
+        const codeDisplay = runner.querySelector('.code-display pre code');
+        if (codeDisplay) {
+          codeDisplay.textContent = fixedCode;
+          if (window.hljs) hljs.highlightElement(codeDisplay);
+        }
+        showToast('Code repaired! Re-running...', 'success');
+        await runSandboxCode(runnerId);
+      } else {
+        showToast('AI reply did not contain code block', 'error');
+      }
+    } else {
+      showToast('AI fix failed: ' + (json.error || 'Unknown error'), 'error');
+    }
+  } catch (err) {
+    showToast('Failed to connect to AI debugger: ' + err.message, 'error');
   }
 }
 
@@ -799,6 +857,8 @@ async function loadLlmConfig() {
       document.getElementById('llmProvider').value = json.data.provider || 'openrouter';
       document.getElementById('llmApiKey').value = json.data.api_key || '';
       document.getElementById('llmBaseUrl').value = json.data.base_url || 'https://openrouter.ai/api/v1';
+      document.getElementById('llmEmbeddingBaseUrl').value = json.data.embedding_base_url || '';
+      document.getElementById('llmEmbeddingApiKey').value = json.data.embedding_api_key || '';
       document.getElementById('llmModel').value = json.data.model || 'poolside/laguna-s-2.1:free';
       document.getElementById('llmEmbeddingModel').value = json.data.embedding_model || 'liquid/lfm-2.5-embedding-350m:free';
       document.getElementById('llmTemp').value = json.data.temperature;
@@ -861,6 +921,8 @@ async function saveLlmSettings() {
     provider: document.getElementById('llmProvider').value,
     api_key: document.getElementById('llmApiKey').value,
     base_url: document.getElementById('llmBaseUrl').value,
+    embedding_base_url: document.getElementById('llmEmbeddingBaseUrl').value,
+    embedding_api_key: document.getElementById('llmEmbeddingApiKey').value,
     model: document.getElementById('llmModel').value,
     embedding_model: document.getElementById('llmEmbeddingModel').value,
     temperature: parseFloat(document.getElementById('llmTemp').value) || 0.7,
@@ -896,6 +958,8 @@ async function testLlmConnection() {
     provider: document.getElementById('llmProvider').value,
     api_key: document.getElementById('llmApiKey').value,
     base_url: document.getElementById('llmBaseUrl').value,
+    embedding_base_url: document.getElementById('llmEmbeddingBaseUrl').value,
+    embedding_api_key: document.getElementById('llmEmbeddingApiKey').value,
     model: document.getElementById('llmModel').value,
     embedding_model: document.getElementById('llmEmbeddingModel').value,
     temperature: 0.7,

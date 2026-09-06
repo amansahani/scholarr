@@ -42,6 +42,12 @@ pub struct LLMConfig {
     pub base_url: String,
     pub model: String,
     pub embedding_model: String,
+    /// Separate base URL for the embedding endpoint. Falls back to `base_url` if empty.
+    #[serde(default)]
+    pub embedding_base_url: String,
+    /// Separate API key for the embedding endpoint. Falls back to `api_key` if empty.
+    #[serde(default)]
+    pub embedding_api_key: String,
     pub temperature: f32,
     pub max_tokens: u32,
 }
@@ -54,6 +60,8 @@ impl Default for LLMConfig {
             base_url: std::env::var("LLM_BASE_URL").unwrap_or_else(|_| "https://openrouter.ai/api/v1".to_string()),
             model: std::env::var("LLM_MODEL").unwrap_or_else(|_| "poolside/laguna-s-2.1:free".to_string()),
             embedding_model: std::env::var("LLM_EMBEDDING_MODEL").unwrap_or_else(|_| "liquid/lfm-2.5-embedding-350m:free".to_string()),
+            embedding_base_url: std::env::var("LLM_EMBEDDING_BASE_URL").unwrap_or_default(),
+            embedding_api_key: std::env::var("LLM_EMBEDDING_API_KEY").unwrap_or_default(),
             temperature: 0.7,
             max_tokens: 4096,
         }
@@ -291,6 +299,7 @@ pub struct CreateNoteReq {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct UpdateNoteReq {
     pub title: String,
     pub content: String,
@@ -335,6 +344,7 @@ pub struct SuggestedNote {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct GenerateNoteReq {
     pub prompt: String,
     pub course_id: Option<String>,

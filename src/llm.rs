@@ -39,14 +39,38 @@ pub struct EmbeddingRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct EmbeddingResponse {
-    pub data: Vec<EmbeddingData>,
+#[serde(untagged)]
+pub enum EmbeddingVector {
+    Flat(Vec<f32>),
+    Nested(Vec<Vec<f32>>),
+}
+
+impl EmbeddingVector {
+    pub fn into_flat(self) -> Vec<f32> {
+        match self {
+            EmbeddingVector::Flat(v) => v,
+            EmbeddingVector::Nested(mut nested) => {
+                if !nested.is_empty() {
+                    nested.remove(0)
+                } else {
+                    Vec::new()
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct EmbeddingData {
-    pub embedding: Vec<f32>,
+    pub embedding: EmbeddingVector,
     pub index: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum EmbeddingResponseWrapper {
+    OpenAI { data: Vec<EmbeddingData> },
+    DirectArray(Vec<EmbeddingData>),
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,8 +89,13 @@ pub struct LLMService {
 
 impl LLMService {
     pub fn new() -> Self {
+        let timeout_secs = std::env::var("LLM_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(300); // 5 minutes default for local models / CPU inference
+
         let client = Client::builder()
-            .timeout(Duration::from_secs(90))
+            .timeout(Duration::from_secs(timeout_secs))
             .build()
             .unwrap_or_default();
         Self { client }
@@ -239,11 +268,21 @@ impl LLMService {
             return Err(anyhow::anyhow!("Embedding API returned status {}: {}", status, body_text));
         }
 
-        let parsed: EmbeddingResponse = serde_json::from_str(&body_text)
+        let parsed: EmbeddingResponseWrapper = serde_json::from_str(&body_text)
             .with_context(|| format!("Failed to parse embedding response: {}", body_text))?;
 
-        if let Some(first) = parsed.data.into_iter().next() {
-            Ok(first.embedding)
+        let items = match parsed {
+            EmbeddingResponseWrapper::OpenAI { data } => data,
+            EmbeddingResponseWrapper::DirectArray(data) => data,
+        };
+
+        if let Some(first) = items.into_iter().next() {
+            let vec = first.embedding.into_flat();
+            if vec.is_empty() {
+                Err(anyhow::anyhow!("Received empty embedding vector from provider"))
+            } else {
+                Ok(vec)
+            }
         } else {
             Err(anyhow::anyhow!("Empty embedding data in response"))
         }
@@ -362,8 +401,17 @@ impl LLMService {
 
     /// Resolve Embedding API URL and model
     fn resolve_embedding_endpoint(config: &LLMConfig) -> (String, String, String) {
-        let mut base_url = config.base_url.trim().to_string();
-        let api_key = config.api_key.trim().to_string();
+        // Use dedicated embedding endpoint/key if set, otherwise fall back to main LLM config
+        let mut base_url = if !config.embedding_base_url.trim().is_empty() {
+            config.embedding_base_url.trim().to_string()
+        } else {
+            config.base_url.trim().to_string()
+        };
+        let api_key = if !config.embedding_api_key.trim().is_empty() {
+            config.embedding_api_key.trim().to_string()
+        } else {
+            config.api_key.trim().to_string()
+        };
         let mut model = config.embedding_model.trim().to_string();
 
         if model.is_empty() {

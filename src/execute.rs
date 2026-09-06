@@ -91,15 +91,19 @@ if _HAS_MATPLOTLIB:
         return Err(format!("Failed to write script to sandbox: {}", e));
     }
 
+    let python_bin = std::env::var("PYTHON_PATH")
+        .or_else(|_| std::env::var("PYTHON_BIN"))
+        .unwrap_or_else(|_| "python3".to_string());
+
     let mut cmd = if is_manim {
-        let mut c = Command::new("python3");
+        let mut c = Command::new(&python_bin);
         c.current_dir(&temp_dir)
             .args(&["-m", "manim", "render", "-ql", "--format=mp4", "script.py"])
             .env("MPLBACKEND", "Agg")
             .env("PYTHONUNBUFFERED", "1");
         c
     } else {
-        let mut c = Command::new("python3");
+        let mut c = Command::new(&python_bin);
         c.current_dir(&temp_dir)
             .arg(&script_path)
             .env("MPLBACKEND", "Agg")
@@ -211,4 +215,35 @@ fn find_final_videos_sync(dir: &Path, videos: &mut Vec<String>) {
             }
         }
     }
+}
+
+/// Extract all python code blocks from markdown text
+pub fn extract_python_blocks(text: &str) -> Vec<String> {
+    let mut blocks = Vec::new();
+    let mut in_block = false;
+    let mut current_block = Vec::new();
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```python") || (trimmed == "```" && in_block) {
+            if in_block {
+                blocks.push(current_block.join("\n"));
+                current_block.clear();
+                in_block = false;
+            } else if trimmed.starts_with("```python") {
+                in_block = true;
+            }
+        } else if in_block {
+            current_block.push(line);
+        }
+    }
+
+    blocks
+}
+
+/// Replace a python code block in markdown text with new code
+pub fn replace_python_block(text: &str, old_code: &str, new_code: &str) -> String {
+    let old_snippet = format!("```python\n{}\n```", old_code.trim());
+    let new_snippet = format!("```python\n{}\n```", new_code.trim());
+    text.replace(&old_snippet, &new_snippet)
 }

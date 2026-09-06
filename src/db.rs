@@ -79,6 +79,8 @@ pub fn init_db(db_path: &str) -> Result<DbHandle> {
              base_url TEXT NOT NULL,
              model TEXT NOT NULL,
              embedding_model TEXT NOT NULL,
+             embedding_base_url TEXT NOT NULL DEFAULT '',
+             embedding_api_key TEXT NOT NULL DEFAULT '',
              temperature REAL DEFAULT 0.7,
              max_tokens INTEGER DEFAULT 4096,
              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -197,6 +199,9 @@ pub fn init_db(db_path: &str) -> Result<DbHandle> {
     let _ = conn.execute("ALTER TABLE documents ADD COLUMN dimensions INTEGER", []);
     let _ = conn.execute("ALTER TABLE notes ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'", []);
     let _ = conn.execute("ALTER TABLE notes ADD COLUMN embedding_blob BLOB", []);
+    // Migrations: separate embedding endpoint fields
+    let _ = conn.execute("ALTER TABLE llm_settings ADD COLUMN embedding_base_url TEXT NOT NULL DEFAULT ''", []);
+    let _ = conn.execute("ALTER TABLE llm_settings ADD COLUMN embedding_api_key TEXT NOT NULL DEFAULT ''", []);
 
     let handle = Arc::new(Mutex::new(conn));
 
@@ -259,7 +264,8 @@ pub fn update_user_profile(db: &DbHandle, p: &UserProfile) -> Result<()> {
 pub fn get_llm_config(db: &DbHandle) -> Result<LLMConfig> {
     let conn = db.lock().unwrap();
     let mut stmt = conn.prepare(
-        "SELECT provider, api_key, base_url, model, embedding_model, temperature, max_tokens
+        "SELECT provider, api_key, base_url, model, embedding_model,
+                embedding_base_url, embedding_api_key, temperature, max_tokens
          FROM llm_settings WHERE id = 'default' LIMIT 1"
     )?;
 
@@ -270,8 +276,10 @@ pub fn get_llm_config(db: &DbHandle) -> Result<LLMConfig> {
             base_url: row.get(2)?,
             model: row.get(3)?,
             embedding_model: row.get(4)?,
-            temperature: row.get(5)?,
-            max_tokens: row.get(6)?,
+            embedding_base_url: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
+            embedding_api_key: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
+            temperature: row.get(7)?,
+            max_tokens: row.get(8)?,
         })
     }).optional()?;
 
@@ -281,18 +289,23 @@ pub fn get_llm_config(db: &DbHandle) -> Result<LLMConfig> {
 pub fn save_llm_config(db: &DbHandle, c: &LLMConfig) -> Result<()> {
     let conn = db.lock().unwrap();
     conn.execute(
-        "INSERT INTO llm_settings (id, provider, api_key, base_url, model, embedding_model, temperature, max_tokens, updated_at)
-         VALUES ('default', ?1, ?2, ?3, ?4, ?5, ?6, ?7, CURRENT_TIMESTAMP)
+        "INSERT INTO llm_settings
+             (id, provider, api_key, base_url, model, embedding_model,
+              embedding_base_url, embedding_api_key, temperature, max_tokens, updated_at)
+         VALUES ('default', ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, CURRENT_TIMESTAMP)
          ON CONFLICT(id) DO UPDATE SET
             provider = excluded.provider,
             api_key = excluded.api_key,
             base_url = excluded.base_url,
             model = excluded.model,
             embedding_model = excluded.embedding_model,
+            embedding_base_url = excluded.embedding_base_url,
+            embedding_api_key = excluded.embedding_api_key,
             temperature = excluded.temperature,
             max_tokens = excluded.max_tokens,
             updated_at = CURRENT_TIMESTAMP",
-        params![c.provider, c.api_key, c.base_url, c.model, c.embedding_model, c.temperature, c.max_tokens],
+        params![c.provider, c.api_key, c.base_url, c.model, c.embedding_model,
+                c.embedding_base_url, c.embedding_api_key, c.temperature, c.max_tokens],
     )?;
     Ok(())
 }

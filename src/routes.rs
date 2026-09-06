@@ -88,6 +88,11 @@ pub async fn get_llm_config(State(state): State<AppState>) -> impl IntoResponse 
                 let suffix = &config.api_key[config.api_key.len() - 4..];
                 config.api_key = format!("{}****{}", prefix, suffix);
             }
+            if config.embedding_api_key.len() > 8 {
+                let prefix = &config.embedding_api_key[..4];
+                let suffix = &config.embedding_api_key[config.embedding_api_key.len() - 4..];
+                config.embedding_api_key = format!("{}****{}", prefix, suffix);
+            }
             ApiResponse::ok(config).into_response()
         }
         Err(e) => ApiResponse::<LLMConfig>::err(e.to_string()).into_response(),
@@ -99,9 +104,14 @@ pub async fn save_llm_config(
     Json(payload): Json<LLMConfig>,
 ) -> impl IntoResponse {
     let mut config_to_save = payload;
-    if config_to_save.api_key.contains("****") {
+    if config_to_save.api_key.contains("****") || config_to_save.embedding_api_key.contains("****") {
         if let Ok(existing) = db::get_llm_config(&state.db) {
-            config_to_save.api_key = existing.api_key;
+            if config_to_save.api_key.contains("****") {
+                config_to_save.api_key = existing.api_key;
+            }
+            if config_to_save.embedding_api_key.contains("****") {
+                config_to_save.embedding_api_key = existing.embedding_api_key;
+            }
         }
     }
 
@@ -116,9 +126,17 @@ pub async fn test_llm_connection(
     Json(payload): Json<LLMConfig>,
 ) -> impl IntoResponse {
     let mut config_to_test = payload;
-    if config_to_test.api_key.contains("****") || config_to_test.api_key.is_empty() {
+    if config_to_test.api_key.contains("****")
+        || config_to_test.api_key.is_empty()
+        || config_to_test.embedding_api_key.contains("****")
+    {
         if let Ok(existing) = db::get_llm_config(&state.db) {
-            config_to_test.api_key = existing.api_key;
+            if config_to_test.api_key.contains("****") || config_to_test.api_key.is_empty() {
+                config_to_test.api_key = existing.api_key;
+            }
+            if config_to_test.embedding_api_key.contains("****") {
+                config_to_test.embedding_api_key = existing.embedding_api_key;
+            }
         }
     }
 
@@ -606,14 +624,81 @@ pub async fn chat(
         content: user_msg.to_string(),
     });
 
-    // 8. Call LLM Service (e.g. poolside/laguna-s-2.1:free via OpenRouter)
-    let reply = match state.llm.complete(&llm_config, llm_messages).await {
+    // 8. Call LLM Service
+    let mut reply = match state.llm.complete(&llm_config, llm_messages.clone()).await {
         Ok(ans) => ans,
         Err(e) => {
             error!("LLM call failed: {}", e);
             return ApiResponse::<ChatResponse>::err(format!("LLM Error: {}", e)).into_response();
         }
     };
+
+    // 8.1 Precompile & Self-Healing Loop for any generated Python/Manim code blocks
+    let code_blocks = crate::execute::extract_python_blocks(&reply);
+    for block in code_blocks {
+        info!("Precompiling and validating generated Python code block...");
+        let mut current_code = block.clone();
+        let mut attempts = 0;
+        let max_healing_attempts = 2;
+
+        while attempts < max_healing_attempts {
+            // Execute in isolated sandbox with a fast check timeout
+            match crate::execute::run_python_isolated(&current_code, None, Some(20)).await {
+                Ok(exec_result) => {
+                    let has_error = exec_result.exit_code.map(|c| c != 0).unwrap_or(false)
+                        || exec_result.stderr.contains("Traceback (most recent call last)")
+                        || exec_result.stderr.contains("TypeError:")
+                        || exec_result.stderr.contains("NameError:")
+                        || exec_result.stderr.contains("AttributeError:")
+                        || exec_result.stderr.contains("SyntaxError:")
+                        || exec_result.stderr.contains("ImportError:");
+
+                    if has_error {
+                        attempts += 1;
+                        let err_msg = if !exec_result.stderr.trim().is_empty() {
+                            exec_result.stderr.trim()
+                        } else {
+                            exec_result.stdout.trim()
+                        };
+                        info!("Precompilation failed (attempt {}): {}. Sending back to LLM for automated fix...", attempts, err_msg);
+
+                        let healing_prompt = format!(
+                            "The Python/Manim code generated earlier produced this runtime error during precompilation:\n\n```stderr\n{}\n```\n\nOriginal Code:\n```python\n{}\n```\n\nPlease fix this error and output ONLY the complete corrected Python code inside a single ```python ... ``` block. Do not include extra conversational text.",
+                            err_msg,
+                            current_code
+                        );
+
+                        let fix_messages = vec![
+                            OpenAIMessage {
+                                role: "system".to_string(),
+                                content: "You are an elite Python & Manim code debugger. When given a runtime error, analyze it and output ONLY the complete corrected Python code in a ```python ... ``` block.".to_string(),
+                            },
+                            OpenAIMessage {
+                                role: "user".to_string(),
+                                content: healing_prompt,
+                            },
+                        ];
+
+                        if let Ok(fixed_reply) = state.llm.complete(&llm_config, fix_messages).await {
+                            let fixed_blocks = crate::execute::extract_python_blocks(&fixed_reply);
+                            if let Some(fixed_code) = fixed_blocks.into_iter().next() {
+                                reply = crate::execute::replace_python_block(&reply, &current_code, &fixed_code);
+                                current_code = fixed_code;
+                                continue;
+                            }
+                        }
+                    } else {
+                        info!("Generated Python code block successfully verified!");
+                    }
+                    break;
+                }
+                Err(err) => {
+                    error!("Precompile sandbox execution error: {}", err);
+                    break;
+                }
+            }
+        }
+    }
 
     // 8. Save user and assistant messages to database
     let _ = db::save_chat_message(

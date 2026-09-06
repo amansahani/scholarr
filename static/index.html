@@ -564,8 +564,19 @@
         </div>
 
         <div>
-          <label class="block text-slate-300 font-medium mb-1.5">Base URL (Endpoint)</label>
-          <input type="text" id="llmBaseUrl" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500 font-mono">
+          <label class="block text-slate-300 font-medium mb-1.5">LLM Base URL (Chat Endpoint)</label>
+          <input type="text" id="llmBaseUrl" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500 font-mono" placeholder="https://api.openai.com/v1">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1.5">Embedding Base URL <span class="text-slate-500 font-normal">(Optional)</span></label>
+            <input type="text" id="llmEmbeddingBaseUrl" placeholder="Leave blank to use LLM Base URL" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500 font-mono text-[11px]">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1.5">Embedding API Key <span class="text-slate-500 font-normal">(Optional)</span></label>
+            <input type="password" id="llmEmbeddingApiKey" placeholder="Leave blank to use main API Key" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500 font-mono text-[11px]">
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">

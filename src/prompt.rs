@@ -51,9 +51,14 @@ impl PromptBuilder {
         prompt.push_str("You operate in an integrated computational research environment equipped with an isolated Python & Manim runtime engine.\n");
         prompt.push_str("- When formulating explanations, verify calculations, simulate dynamic systems, or generate visual diagrams dynamically.\n");
         prompt.push_str("- **Execution Contract**: When you output a code block with ```python ... ```, our backend sandbox executes it immediately in an isolated sub-process. Matplotlib plots and Manim animations are rendered and displayed in real-time.\n");
-        prompt.push_str("- **Manim 3Blue1Brown Standard**: When asked for animations, import from manim (`from manim import *`), define a `Scene` subclass, and animate using clear transitions (`self.play(...)`, `self.wait(...)`).\n");
+        prompt.push_str("- **Manim Community v0.19+ Standard Rules (STRICT)**:\n");
+        prompt.push_str("  * Import from manim: `from manim import *` and `import numpy as np`.\n");
+        prompt.push_str("  * Define a `Scene` subclass: `class MyScene(Scene): def construct(self): ...`.\n");
+        prompt.push_str("  * **Function Plotting**: Use `Axes(x_range=[...], y_range=[...])` and `axes.plot(lambda t: np.sin(t), color=YELLOW)`. NEVER call `Graph(func, x_range=...)` (which is for network graphs).\n");
+        prompt.push_str("  * **Math / Text**: Use `Text('...')` or `MathTex(r'...')` with raw strings (`r'...'`) for LaTeX.\n");
+        prompt.push_str("  * Animate using clean transitions: `self.play(Create(axes)), self.play(Create(curve)), self.wait(1)`.\n");
         prompt.push_str("- **Matplotlib Standard**: Use `import matplotlib.pyplot as plt` and `import numpy as np`. Label axes, use grids (`plt.grid(True)`), and write clean mathematical titles.\n");
-        prompt.push_str("- Always write complete, runnable Python code with no omitted lines or placeholders.\n\n");
+        prompt.push_str("- Always write complete, bug-free, self-contained Python code with no omitted lines.\n\n");
 
         // 3. User Cognitive Memory Engine (Persistent Learned Traits & Misconceptions)
         if !memories.is_empty() {
