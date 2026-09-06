@@ -128,6 +128,29 @@ pub struct ChatMessage {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserMemory {
+    pub id: String,
+    pub memory_type: String, // "preference", "fact", "misconception", "goal", "weakness"
+    pub key: String,
+    pub value: String,
+    pub confidence: f32,
+    pub source_event: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding: Option<Vec<f32>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateMemoryReq {
+    pub memory_type: String,
+    pub key: String,
+    pub value: String,
+    pub confidence: Option<f32>,
+    pub source_event: Option<String>,
+}
+
 // Request / Response Payloads
 #[derive(Debug, Deserialize)]
 pub struct CreateCourseReq {

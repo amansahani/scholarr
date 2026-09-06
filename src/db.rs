@@ -163,6 +163,19 @@ pub fn init_db(db_path: &str) -> Result<DbHandle> {
              created_at DATETIME DEFAULT CURRENT_TIMESTAMP
          );
 
+         -- User Episodic & Semantic Long-Term Memories (Memory Maintaining Engine)
+         CREATE TABLE IF NOT EXISTS user_memories (
+             id TEXT PRIMARY KEY,
+             memory_type TEXT NOT NULL,
+             key TEXT NOT NULL,
+             value TEXT NOT NULL,
+             confidence REAL NOT NULL DEFAULT 1.0,
+             source_event TEXT,
+             embedding_blob BLOB,
+             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+         );
+
          -- Indices
          CREATE INDEX IF NOT EXISTS idx_topics_course ON topics(course_id);
          CREATE INDEX IF NOT EXISTS idx_docs_course ON documents(course_id);
@@ -170,10 +183,12 @@ pub fn init_db(db_path: &str) -> Result<DbHandle> {
          CREATE INDEX IF NOT EXISTS idx_graph_edges_src ON graph_edges(source_id);
          CREATE INDEX IF NOT EXISTS idx_graph_edges_tgt ON graph_edges(target_id);
          CREATE INDEX IF NOT EXISTS idx_chat_history_course ON chat_history(course_id);
+         CREATE INDEX IF NOT EXISTS idx_user_memories_type ON user_memories(memory_type);
         "
     )?;
 
     // Perform migrations for existing DBs if needed
+    let _ = conn.execute("CREATE TABLE IF NOT EXISTS user_memories (id TEXT PRIMARY KEY, memory_type TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, confidence REAL NOT NULL DEFAULT 1.0, source_event TEXT, embedding_blob BLOB, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)", []);
     let _ = conn.execute("ALTER TABLE topics ADD COLUMN chapter TEXT NOT NULL DEFAULT 'Chapter 1'", []);
     let _ = conn.execute("ALTER TABLE topics ADD COLUMN quiz_score REAL", []);
     let _ = conn.execute("ALTER TABLE topics ADD COLUMN quizzes_taken INTEGER DEFAULT 0", []);
@@ -1030,4 +1045,153 @@ pub fn clear_chat_history(db: &DbHandle, course_id: Option<&str>, topic_id: Opti
         conn.execute("DELETE FROM chat_history", [])?;
     }
     Ok(())
+}
+
+// ================= MEMORY MAINTAINING ENGINE =================
+pub fn save_or_update_memory(
+    db: &DbHandle,
+    memory_type: &str,
+    key: &str,
+    value: &str,
+    confidence: f32,
+    source_event: Option<&str>,
+    embedding: Option<&[f32]>,
+) -> Result<UserMemory> {
+    let conn = db.lock().unwrap();
+    let now = Utc::now();
+    let now_str = now.to_rfc3339();
+
+    // Check if memory with same type and key exists
+    let existing_id: Option<String> = conn
+        .query_row(
+            "SELECT id FROM user_memories WHERE memory_type = ?1 AND key = ?2",
+            params![memory_type, key],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    let emb_blob = embedding.map(vector_to_blob);
+
+    if let Some(id) = existing_id {
+        conn.execute(
+            "UPDATE user_memories SET value = ?1, confidence = ?2, source_event = ?3, embedding_blob = COALESCE(?4, embedding_blob), updated_at = ?5 WHERE id = ?6",
+            params![value, confidence, source_event, emb_blob, now_str, id],
+        )?;
+        Ok(UserMemory {
+            id,
+            memory_type: memory_type.to_string(),
+            key: key.to_string(),
+            value: value.to_string(),
+            confidence,
+            source_event: source_event.map(|s| s.to_string()),
+            embedding: embedding.map(|e| e.to_vec()),
+            created_at: now,
+            updated_at: now,
+        })
+    } else {
+        let new_id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO user_memories (id, memory_type, key, value, confidence, source_event, embedding_blob, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![new_id, memory_type, key, value, confidence, source_event, emb_blob, now_str, now_str],
+        )?;
+        Ok(UserMemory {
+            id: new_id,
+            memory_type: memory_type.to_string(),
+            key: key.to_string(),
+            value: value.to_string(),
+            confidence,
+            source_event: source_event.map(|s| s.to_string()),
+            embedding: embedding.map(|e| e.to_vec()),
+            created_at: now,
+            updated_at: now,
+        })
+    }
+}
+
+pub fn list_memories(db: &DbHandle, memory_type: Option<&str>, limit: usize) -> Result<Vec<UserMemory>> {
+    let conn = db.lock().unwrap();
+    let (sql, params_vec): (String, Vec<rusqlite::types::Value>) = if let Some(m_type) = memory_type {
+        (
+            "SELECT id, memory_type, key, value, confidence, source_event, embedding_blob, created_at, updated_at FROM user_memories WHERE memory_type = ? ORDER BY updated_at DESC LIMIT ?".to_string(),
+            vec![m_type.to_string().into(), (limit as i64).into()],
+        )
+    } else {
+        (
+            "SELECT id, memory_type, key, value, confidence, source_event, embedding_blob, created_at, updated_at FROM user_memories ORDER BY updated_at DESC LIMIT ?".to_string(),
+            vec![(limit as i64).into()],
+        )
+    };
+
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(params_vec), |row| {
+        let emb_blob: Option<Vec<u8>> = row.get(6)?;
+        let emb = emb_blob.map(|b| blob_to_vector(&b));
+        let c_str: String = row.get(7)?;
+        let u_str: String = row.get(8)?;
+
+        Ok(UserMemory {
+            id: row.get(0)?,
+            memory_type: row.get(1)?,
+            key: row.get(2)?,
+            value: row.get(3)?,
+            confidence: row.get(4)?,
+            source_event: row.get(5)?,
+            embedding: emb,
+            created_at: DateTime::parse_from_rfc3339(&c_str).map(|d| d.with_timezone(&Utc)).unwrap_or_else(|_| Utc::now()),
+            updated_at: DateTime::parse_from_rfc3339(&u_str).map(|d| d.with_timezone(&Utc)).unwrap_or_else(|_| Utc::now()),
+        })
+    })?;
+
+    let mut list = Vec::new();
+    for r in rows {
+        list.push(r?);
+    }
+    Ok(list)
+}
+
+pub fn delete_memory(db: &DbHandle, id: &str) -> Result<()> {
+    let conn = db.lock().unwrap();
+    conn.execute("DELETE FROM user_memories WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn search_memories_vector(db: &DbHandle, query_embedding: &[f32], limit: usize) -> Result<Vec<(UserMemory, f32)>> {
+    let conn = db.lock().unwrap();
+    let mut stmt = conn.prepare(
+        "SELECT id, memory_type, key, value, confidence, source_event, embedding_blob, created_at, updated_at FROM user_memories WHERE embedding_blob IS NOT NULL"
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        let emb_blob: Option<Vec<u8>> = row.get(6)?;
+        let emb = emb_blob.map(|b| blob_to_vector(&b));
+        let c_str: String = row.get(7)?;
+        let u_str: String = row.get(8)?;
+
+        Ok(UserMemory {
+            id: row.get(0)?,
+            memory_type: row.get(1)?,
+            key: row.get(2)?,
+            value: row.get(3)?,
+            confidence: row.get(4)?,
+            source_event: row.get(5)?,
+            embedding: emb,
+            created_at: DateTime::parse_from_rfc3339(&c_str).map(|d| d.with_timezone(&Utc)).unwrap_or_else(|_| Utc::now()),
+            updated_at: DateTime::parse_from_rfc3339(&u_str).map(|d| d.with_timezone(&Utc)).unwrap_or_else(|_| Utc::now()),
+        })
+    })?;
+
+    let mut scored: Vec<(UserMemory, f32)> = Vec::new();
+    for r in rows {
+        let mem = r?;
+        if let Some(ref emb) = mem.embedding {
+            let sim = cosine_similarity(query_embedding, emb);
+            if sim > 0.3 {
+                scored.push((mem, sim));
+            }
+        }
+    }
+
+    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    scored.truncate(limit);
+    Ok(scored)
 }

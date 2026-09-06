@@ -1,4 +1,4 @@
-use crate::models::{Course, CourseDocument, Note, Topic, UserProfile};
+use crate::models::{Course, CourseDocument, Note, Topic, UserMemory, UserProfile};
 
 pub struct PromptBuilder;
 
@@ -9,6 +9,7 @@ impl PromptBuilder {
         topic: Option<&Topic>,
         docs: &[CourseDocument],
         notes: &[Note],
+        memories: &[UserMemory],
     ) -> String {
         let mut prompt = String::new();
 
@@ -46,7 +47,7 @@ impl PromptBuilder {
         }
 
         // 2. Pi / DeepSeek Cognitive Architecture & Tool Protocol
-        prompt.push_str("### 🧠 AGENT EXECUTION HARNESS PROTOCOL (DeepSeek / Pi Harness Pattern):\n");
+        prompt.push_str("\n### 🧠 AGENT EXECUTION HARNESS PROTOCOL (DeepSeek / Pi Harness Pattern):\n");
         prompt.push_str("You operate in an integrated computational research environment equipped with an isolated Python & Manim runtime engine.\n");
         prompt.push_str("- When formulating explanations, verify calculations, simulate dynamic systems, or generate visual diagrams dynamically.\n");
         prompt.push_str("- **Execution Contract**: When you output a code block with ```python ... ```, our backend sandbox executes it immediately in an isolated sub-process. Matplotlib plots and Manim animations are rendered and displayed in real-time.\n");
@@ -54,15 +55,25 @@ impl PromptBuilder {
         prompt.push_str("- **Matplotlib Standard**: Use `import matplotlib.pyplot as plt` and `import numpy as np`. Label axes, use grids (`plt.grid(True)`), and write clean mathematical titles.\n");
         prompt.push_str("- Always write complete, runnable Python code with no omitted lines or placeholders.\n\n");
 
-        // 3. Formatting Rules & LaTeX Guidelines
+        // 3. User Cognitive Memory Engine (Persistent Learned Traits & Misconceptions)
+        if !memories.is_empty() {
+            prompt.push_str("### 🧠 USER PERSISTENT COGNITIVE MEMORIES (Memory Engine):\n");
+            prompt.push_str("Adapt your teaching and explanation strategy around these stored learner traits, strengths, weaknesses, and tracked preferences:\n");
+            for m in memories {
+                prompt.push_str(&format!("- [{}] {}: {}\n", m.memory_type.to_uppercase(), m.key, m.value));
+            }
+            prompt.push_str("\n");
+        }
+
+        // 4. Formatting Rules & LaTeX Guidelines
         prompt.push_str("### 📐 MATHEMATICAL NOTATION & RIGOR (STRICT):\n");
         prompt.push_str("1. **LaTeX Encodings**: You MUST format ALL mathematical formulas, variables, and expressions using LaTeX:\n");
         prompt.push_str("   - Inline math: `$x(t)$`, `$\\delta(t)$`, `$u(t)$`, `$\\omega_0$`, `$H(s)$`\n");
-        prompt.push_str("   - Block math: `$$\\int_{-\\infty}^{\\infty} x(\\tau) h(t-\\tau) d\\tau$$`\n");
+        prompt.push_str("   - Display block math: `$$\\int_{-\\infty}^{\\infty} x(\\tau) h(t-\\tau) d\\tau$$`\n");
         prompt.push_str("   - Step-by-step derivations: Use `$$\\begin{aligned} ... \\end{aligned}$$`.\n");
         prompt.push_str("2. **Clarity & Structure**: Organize responses with bold section headers, intuitive physical analogies, formal derivations, and highlighted key takeaways.\n\n");
 
-        // 4. Course & Topic Grounded Context (Working Memory)
+        // 5. Course & Topic Grounded Context (Working Memory)
         if let Some(c) = course {
             prompt.push_str("### 📚 ACTIVE COURSE CONTEXT (Working Memory):\n");
             prompt.push_str(&format!("- **Course**: {}\n", c.title));
@@ -86,7 +97,7 @@ impl PromptBuilder {
             prompt.push_str("\n");
         }
 
-        // 5. Semantic Long-Term Memory (RAG Retrieval)
+        // 6. Semantic Long-Term Memory (RAG Retrieval)
         if !docs.is_empty() {
             prompt.push_str("### 📖 RETRIEVED TEXTBOOK & DOCUMENT CONTEXT (Long-Term Memory):\n");
             for (idx, doc) in docs.iter().enumerate() {
@@ -101,7 +112,7 @@ impl PromptBuilder {
             prompt.push_str("Ground your answers firmly in the reference materials above.\n\n");
         }
 
-        // 6. User Personal Notes & Knowledge Graph Context
+        // 7. User Personal Notes & Knowledge Graph Context
         if !notes.is_empty() {
             prompt.push_str("### 📝 RELEVANT USER NOTES & MEMORY EMBEDDINGS:\n");
             for note in notes {

@@ -104,6 +104,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/chat", post(routes::chat))
         .route("/generate-note", post(routes::generate_note))
         .route("/ingest/pdf", post(routes::ingest_pdf))
+        // Cognitive Memory Engine (Learner Profiles, Traits, Misconceptions)
+        .route("/memories", get(routes::get_memories).post(routes::create_memory))
+        .route("/memories/{id}", delete(routes::delete_memory))
         // Code Execution & Sandbox Visualizer
         .route("/execute/python", post(execute::execute_python_code))
         .with_state(state);

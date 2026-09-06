@@ -557,16 +557,29 @@ pub async fn chat(
         }
     }
 
-    // 5. Build System Prompt
+    // 5. Memory Maintaining Engine: Fetch relevant user memories (vector similarity + latest persistent facts)
+    let memories = if let Some(ref q_emb) = query_embedding {
+        let scored = db::search_memories_vector(&state.db, q_emb, 6).unwrap_or_default();
+        if !scored.is_empty() {
+            scored.into_iter().map(|(m, _)| m).collect()
+        } else {
+            db::list_memories(&state.db, None, 6).unwrap_or_default()
+        }
+    } else {
+        db::list_memories(&state.db, None, 6).unwrap_or_default()
+    };
+
+    // 6. Build System Prompt with Grounded Context & Memories
     let system_prompt = PromptBuilder::build_system_prompt(
         &profile,
         course.as_ref(),
         topic.as_ref(),
         &docs,
         &notes,
+        &memories,
     );
 
-    // 6. Fetch previous recent messages
+    // 7. Fetch previous recent messages (Episodic Context)
     let history = db::get_chat_history(
         &state.db,
         req.course_id.as_deref(),
@@ -593,7 +606,7 @@ pub async fn chat(
         content: user_msg.to_string(),
     });
 
-    // 7. Call LLM Service (e.g. poolside/laguna-s-2.1:free via OpenRouter)
+    // 8. Call LLM Service (e.g. poolside/laguna-s-2.1:free via OpenRouter)
     let reply = match state.llm.complete(&llm_config, llm_messages).await {
         Ok(ans) => ans,
         Err(e) => {
@@ -1067,7 +1080,7 @@ Output STRICTLY a valid JSON object matching this schema with NO wrapping markdo
         }
     };
 
-    // If topic_id is present, persist the score to RocksDB
+    // If topic_id is present, persist the score to SQLite
     if let Some(ref tid) = req.topic_id {
         if let Ok(updated_topic) = db::record_topic_quiz_score(&state.db, tid, final_response.score_percentage) {
             final_response.mastery_level = updated_topic.mastery_level;
@@ -1075,4 +1088,63 @@ Output STRICTLY a valid JSON object matching this schema with NO wrapping markdo
     }
 
     ApiResponse::ok(final_response).into_response()
+}
+
+// --- COGNITIVE MEMORY MAINTAINING ENGINE API ---
+#[derive(Debug, Deserialize)]
+pub struct MemoryQuery {
+    pub memory_type: Option<String>,
+    pub limit: Option<usize>,
+}
+
+pub async fn get_memories(
+    State(state): State<AppState>,
+    Query(query): Query<MemoryQuery>,
+) -> impl IntoResponse {
+    let limit = query.limit.unwrap_or(50);
+    match db::list_memories(&state.db, query.memory_type.as_deref(), limit) {
+        Ok(memories) => ApiResponse::ok(memories).into_response(),
+        Err(e) => ApiResponse::<Vec<UserMemory>>::err(e.to_string()).into_response(),
+    }
+}
+
+pub async fn create_memory(
+    State(state): State<AppState>,
+    Json(req): Json<CreateMemoryReq>,
+) -> impl IntoResponse {
+    let llm_config = db::get_llm_config(&state.db).ok();
+    let text_to_embed = format!("{}: {}", req.key, req.value);
+
+    let embedding = if let Some(ref conf) = llm_config {
+        if !conf.api_key.is_empty() {
+            state.llm.embed_text(conf, &text_to_embed).await.ok()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    match db::save_or_update_memory(
+        &state.db,
+        &req.memory_type,
+        &req.key,
+        &req.value,
+        req.confidence.unwrap_or(1.0),
+        req.source_event.as_deref(),
+        embedding.as_deref(),
+    ) {
+        Ok(mem) => ApiResponse::ok(mem).into_response(),
+        Err(e) => ApiResponse::<UserMemory>::err(e.to_string()).into_response(),
+    }
+}
+
+pub async fn delete_memory(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match db::delete_memory(&state.db, &id) {
+        Ok(_) => ApiResponse::ok("Memory record deleted").into_response(),
+        Err(e) => ApiResponse::<String>::err(e.to_string()).into_response(),
+    }
 }
