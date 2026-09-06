@@ -16,7 +16,7 @@ pub struct ExecutePythonRequest {
     pub timeout_secs: Option<u64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutePythonResult {
     pub stdout: String,
     pub stderr: String,
@@ -27,35 +27,28 @@ pub struct ExecutePythonResult {
     pub execution_type: String,
 }
 
-/// Router endpoint for executing Python code in an isolated temporary sandbox
-pub async fn execute_python_code(
-    State(_state): State<AppState>,
-    Json(payload): Json<ExecutePythonRequest>,
-) -> Json<ApiResponse<ExecutePythonResult>> {
+/// Execute Python code directly in a sandboxed directory
+pub async fn run_python_isolated(code: &str, execution_type: Option<&str>, timeout_secs: Option<u64>) -> Result<ExecutePythonResult, String> {
     let start_time = std::time::Instant::now();
-    let max_timeout = payload.timeout_secs.unwrap_or(45).clamp(5, 120);
+    let max_timeout = timeout_secs.unwrap_or(45).clamp(5, 120);
 
     let session_id = uuid::Uuid::new_v4().to_string();
     let temp_dir = std::env::temp_dir().join(format!("scholarr_sandbox_{}", session_id));
 
     if let Err(e) = fs::create_dir_all(&temp_dir).await {
         error!("Failed to create sandbox directory: {}", e);
-        return Json(ApiResponse {
-            success: false,
-            data: None,
-            error: Some(format!("Failed to initialize sandbox environment: {}", e)),
-        });
+        return Err(format!("Failed to initialize sandbox environment: {}", e));
     }
 
-    let is_manim = payload.code.contains("from manim import")
-        || (payload.code.contains("class ") && payload.code.contains("Scene):"))
-        || payload.execution_type.as_deref() == Some("manim");
+    let is_manim = code.contains("from manim import")
+        || (code.contains("class ") && code.contains("Scene):"))
+        || execution_type == Some("manim");
 
     let script_path = temp_dir.join("script.py");
 
     let wrapped_code = if is_manim {
         // Manim script
-        payload.code.clone()
+        code.to_string()
     } else {
         // Wrap standard Python script with headless matplotlib hook and figure autosaver
         format!(
@@ -88,18 +81,14 @@ if _HAS_MATPLOTLIB:
     except Exception as _e:
         sys.stderr.write(f"\n[Plot Saver Error: {{_e}}]\n")
 "#,
-            payload.code,
+            code,
             temp_dir.to_string_lossy()
         )
     };
 
     if let Err(e) = fs::write(&script_path, wrapped_code).await {
         let _ = fs::remove_dir_all(&temp_dir).await;
-        return Json(ApiResponse {
-            success: false,
-            data: None,
-            error: Some(format!("Failed to write script to sandbox: {}", e)),
-        });
+        return Err(format!("Failed to write script to sandbox: {}", e));
     }
 
     let mut cmd = if is_manim {
@@ -119,9 +108,7 @@ if _HAS_MATPLOTLIB:
     };
 
     let execution_future = cmd.output();
-
     let output_res = timeout(Duration::from_secs(max_timeout), execution_future).await;
-
     let elapsed = start_time.elapsed().as_millis();
 
     let (stdout_str, stderr_str, exit_code) = match output_res {
@@ -132,19 +119,11 @@ if _HAS_MATPLOTLIB:
         }
         Ok(Err(e)) => {
             let _ = fs::remove_dir_all(&temp_dir).await;
-            return Json(ApiResponse {
-                success: false,
-                data: None,
-                error: Some(format!("Failed to execute Python process: {}", e)),
-            });
+            return Err(format!("Failed to execute Python process: {}", e));
         }
         Err(_) => {
             let _ = fs::remove_dir_all(&temp_dir).await;
-            return Json(ApiResponse {
-                success: false,
-                data: None,
-                error: Some(format!("Execution timed out after {} seconds. Check for infinite loops or heavy calculations.", max_timeout)),
-            });
+            return Err(format!("Execution timed out after {} seconds.", max_timeout));
         }
     };
 
@@ -176,7 +155,7 @@ if _HAS_MATPLOTLIB:
     // Clean up temporary sandbox directory
     let _ = fs::remove_dir_all(&temp_dir).await;
 
-    let result = ExecutePythonResult {
+    Ok(ExecutePythonResult {
         stdout: stdout_str,
         stderr: stderr_str,
         exit_code,
@@ -184,13 +163,26 @@ if _HAS_MATPLOTLIB:
         images_base64,
         videos_base64,
         execution_type: if is_manim { "manim".to_string() } else { "plot".to_string() },
-    };
-
-    Json(ApiResponse {
-        success: true,
-        data: Some(result),
-        error: None,
     })
+}
+
+/// Router endpoint for executing Python code in an isolated temporary sandbox
+pub async fn execute_python_code(
+    State(_state): State<AppState>,
+    Json(payload): Json<ExecutePythonRequest>,
+) -> Json<ApiResponse<ExecutePythonResult>> {
+    match run_python_isolated(&payload.code, payload.execution_type.as_deref(), payload.timeout_secs).await {
+        Ok(result) => Json(ApiResponse {
+            success: true,
+            data: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(ApiResponse {
+            success: false,
+            data: None,
+            error: Some(e),
+        }),
+    }
 }
 
 fn find_final_videos_sync(dir: &Path, videos: &mut Vec<String>) {
